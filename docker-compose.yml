@@ -1,0 +1,32 @@
+version: '3.9'
+
+services:
+  api:
+    build:
+      context: ./services/api
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=development
+    env_file:
+      - ./services/api/.env
+    volumes:
+      - ./services/api/src:/app/src
+    depends_on:
+      - ml
+
+  ml:
+    build:
+      context: ./services/ml
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DEBUG=true
+    env_file:
+      - ./services/ml/.env
+    volumes:
+      - ./services/ml:/app
+
+volumes: {}
