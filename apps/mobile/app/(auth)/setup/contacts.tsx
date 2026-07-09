@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
+import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
 import { useUserStore } from '@/store/userStore';
@@ -16,7 +17,22 @@ const MAX_CONTACTS = 3;
 export default function EmergencyContactsScreen() {
   const router = useRouter();
   const { session } = useAuthStore();
-  const { onboardingDraft, updateDraft, saveEmergencyContacts, isLoading } = useUserStore();
+  const { onboardingDraft, updateDraft, saveEmergencyContacts, isLoading, emergencyContacts } =
+    useUserStore();
+
+  // When editing post-onboarding (e.g. from Settings), seed the draft from the
+  // already-saved contacts so they show up and aren't wiped on save.
+  useEffect(() => {
+    if (onboardingDraft.emergencyContacts.length === 0 && emergencyContacts.length > 0) {
+      updateDraft({
+        emergencyContacts: emergencyContacts.map((c, i) => ({
+          name: c.name,
+          phone: c.phone,
+          priorityOrder: ((c as any).priorityOrder ?? i + 1) as 1 | 2 | 3,
+        })),
+      });
+    }
+  }, []);
 
   const contacts = onboardingDraft.emergencyContacts;
 
@@ -92,7 +108,7 @@ export default function EmergencyContactsScreen() {
           <TextInput
             style={styles.input}
             value={contact.name}
-            onChangeText={t => updateContact(i, 'name', t)}
+            onChangeText={(t: string) => updateContact(i, 'name', t)}
             placeholder="Contact name"
             placeholderTextColor="#444456"
             autoCapitalize="words"
@@ -105,7 +121,7 @@ export default function EmergencyContactsScreen() {
             <TextInput
               style={styles.phoneInput}
               value={contact.phone.replace(/\D/g, '').slice(0, 10)}
-              onChangeText={t => updateContact(i, 'phone', t.replace(/\D/g, '').slice(0, 10))}
+              onChangeText={(t: string) => updateContact(i, 'phone', t.replace(/\D/g, '').slice(0, 10))}
               placeholder="Phone number"
               placeholderTextColor="#444456"
               keyboardType="phone-pad"

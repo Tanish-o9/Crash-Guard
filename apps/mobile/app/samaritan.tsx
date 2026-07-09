@@ -16,7 +16,11 @@ import * as Location from 'expo-location';
 import * as Speech from 'expo-speech';
 import { useSamaritanStore } from '@/store/samaritanStore';
 import { analyzeIncidentDescription } from '@/services/geminiService';
+import { agentService } from '@/services/agentService';
 import { emergencyService } from '@/services/emergencyService';
+import { placeCall, setSpeakerphone } from '@/modules/native-call';
+import { speakInCall } from '@/modules/native-tts';
+import { languageChainForLocation, ttsLocale } from '@/services/languageService';
 import { EMERGENCY_MOCK_NUMBER } from '@crashguard/constants';
 
 export default function SamaritanScreen() {
@@ -70,11 +74,13 @@ export default function SamaritanScreen() {
     }
   }, [step]);
 
-  // Analyzing effect (Gemini)
+  // Analyzing effect (Bedrock agent, with Gemini/mock fallback)
   useEffect(() => {
     if (step === 'analyzing') {
       (async () => {
-        const result = await analyzeIncidentDescription(description);
+        const result =
+          (await agentService.analyzeIncident(description)) ??
+          (await analyzeIncidentDescription(description));
         setNlpResult(result);
         next(); // -> confirm
       })();
@@ -83,41 +89,71 @@ export default function SamaritanScreen() {
 
   const handleConfirm = () => next(); // -> calling
 
-  // Calling effect
+  // Calling effect — AI-composed dispatcher script + acoustic-bridge call
   useEffect(() => {
     if (step === 'calling') {
       (async () => {
-        // 1. Initiate mock call
-        Linking.openURL(`tel:${EMERGENCY_MOCK_NUMBER}`).catch(() => {});
+        // 1. Resolve spoken-language chain for this location (local → hi → en).
+        let languages: string[] = ['hi', 'en'];
+        try {
+          if (lat && lng) languages = (await languageChainForLocation(lat, lng)).chain;
+        } catch {
+          // keep default
+        }
 
-        // 2. Play TTS Message
-        const msg = `Emergency. I am a bystander reporting an accident. 
-        ${nlpResult?.summary ?? 'A rider has crashed.'} 
-        Location coordinates are ${lat?.toFixed(4)}, ${lng?.toFixed(4)}. 
-        Estimated severity is ${nlpResult?.severity ?? 'unknown'}.`;
-        
-        Speech.speak(msg, {
-          language: 'en',
-          pitch: 1,
-          rate: 0.9,
-          onDone: () => {
-            // Fire-and-forget Supabase log (onDone must return void)
-            void (async () => {
-              if (lat && lng) {
-                const id = await emergencyService.submitSamaritanReport({
-                  lat,
-                  lng,
-                  nlpIntake: description,
-                  severityEstimate: nlpResult?.severity,
-                  canTransport,
-                  hospitalChosen: undefined,
-                });
-                if (id) console.log('Samaritan report logged:', id);
-              }
-              next(); // -> hospital or done
-            })();
-          },
+        // 2. Compose the bystander dispatcher script (AI, with offline fallback).
+        let segments = await agentService.getDispatcherScript({
+          languages,
+          lat,
+          lng,
+          severity: nlpResult?.severity ?? null,
+          victims: nlpResult?.estimatedVictims ?? 1,
+          summary: nlpResult?.summary ?? description,
+          isSamaritan: true,
         });
+        if (!segments || segments.length === 0) {
+          segments = [
+            {
+              lang: 'en',
+              text:
+                `Hello. I am a bystander reporting an accident. ` +
+                `${nlpResult?.summary ?? 'A rider has crashed.'} ` +
+                `Location coordinates are ${lat?.toFixed(4)}, ${lng?.toFixed(4)}. ` +
+                `Estimated severity is ${nlpResult?.severity ?? 'unknown'}. Please send an ambulance.`,
+            },
+          ];
+        }
+
+        // 3. Place the call (mock number until legal clearance), enable speakerphone,
+        //    and speak each segment so the dispatcher hears it via the acoustic bridge.
+        try {
+          await placeCall(EMERGENCY_MOCK_NUMBER);
+        } catch {
+          Linking.openURL(`tel:${EMERGENCY_MOCK_NUMBER}`).catch(() => {});
+        }
+        await new Promise((r) => setTimeout(r, 6000));
+        await setSpeakerphone(true);
+        // Speak twice: we can't detect when the dispatcher actually answers.
+        for (let pass = 0; pass < 2; pass++) {
+          for (const seg of segments) {
+            await speakInCall(seg.text, ttsLocale(seg.lang));
+          }
+        }
+        await setSpeakerphone(false);
+
+        // 4. Log the samaritan report, then advance.
+        if (lat && lng) {
+          const id = await emergencyService.submitSamaritanReport({
+            lat,
+            lng,
+            nlpIntake: description,
+            severityEstimate: nlpResult?.severity,
+            canTransport,
+            hospitalChosen: undefined,
+          });
+          if (id) console.log('Samaritan report logged:', id);
+        }
+        next(); // -> hospital or done
       })();
     }
   }, [step]);
@@ -127,7 +163,9 @@ export default function SamaritanScreen() {
     if (step === 'hospital' && canTransport && lat && lng) {
       (async () => {
         setLoading(true);
-        const fetched = await emergencyService.getNearbyHospitals(lat, lng);
+        const fetched =
+          (await agentService.getNearbyHospitals(lat, lng)) ??
+          (await emergencyService.getNearbyHospitals(lat, lng));
         setHospitals(fetched.slice(0, 3)); // show top 3
         setLoading(false);
       })();
@@ -137,6 +175,58 @@ export default function SamaritanScreen() {
   const handleDone = () => {
     Speech.stop();
     router.back();
+  };
+
+  // Route to a hospital AND pre-alert it: open navigation, look up the hospital's
+  // phone via Place Details, call it, and speak the AI pre-alert over the acoustic
+  // bridge so the receiving hospital can prepare for the inbound patient(s).
+  const dispatchHospital = async (h: {
+    placeId: string;
+    name: string;
+    lat: number;
+    lng: number;
+    distanceKm: number;
+  }) => {
+    Linking.openURL(
+      `https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lng}`,
+    ).catch(() => {});
+
+    let languages: string[] = ['hi', 'en'];
+    try {
+      if (lat && lng) languages = (await languageChainForLocation(lat, lng)).chain;
+    } catch {
+      // keep default
+    }
+
+    const etaMinutes = Math.max(1, Math.round(h.distanceKm * 3));
+    const segs = await agentService.getHospitalPrealert({
+      hospitalName: h.name,
+      victims: nlpResult?.estimatedVictims ?? 1,
+      severity: nlpResult?.severity ?? null,
+      etaMinutes,
+      summary: nlpResult?.summary ?? undefined,
+      languages,
+    });
+
+    // Look up the hospital's phone number and place a real call if available.
+    const details = await agentService.getHospitalDetails(h.placeId);
+    const phone = details?.phone ?? null;
+    if (phone) {
+      try {
+        await placeCall(phone);
+      } catch {
+        Linking.openURL(`tel:${phone}`).catch(() => {});
+      }
+      await new Promise((r) => setTimeout(r, 6000)); // wait for connect
+      await setSpeakerphone(true);
+    }
+
+    for (const seg of segs ?? []) {
+      await speakInCall(seg.text, ttsLocale(seg.lang));
+    }
+
+    if (phone) await setSpeakerphone(false);
+    console.log(`[Pre-Alert] ${h.name} (${h.placeId}) phone=${phone ?? 'n/a'}`);
   };
 
   // ─── Renderers ──────────────────────────────────────────────────────────────
@@ -246,16 +336,11 @@ export default function SamaritanScreen() {
               <Text style={styles.hospitalDist}>{h.distanceKm.toFixed(1)} km away • {h.rating ? `★ ${h.rating}` : 'Unrated'}</Text>
               <Text style={{ fontSize: 11, color: '#555566', marginTop: 4 }} numberOfLines={1}>{h.address}</Text>
             </View>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.navBtn}
-              onPress={() => {
-                const url = `https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lng}`;
-                Linking.openURL(url).catch(() => {});
-                // Part 10.3: Mock pre-alert simulation
-                console.log(`[Pre-Alert] Sent to ${h.name} (${h.placeId})`);
-              }}
+              onPress={() => void dispatchHospital(h)}
             >
-              <Text style={styles.navBtnText}>Navigate</Text>
+              <Text style={styles.navBtnText}>Navigate & Alert</Text>
             </TouchableOpacity>
           </View>
         ))

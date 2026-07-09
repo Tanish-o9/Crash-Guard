@@ -2,6 +2,7 @@
   "name": "crashguard",
   "version": "0.0.1",
   "private": true,
+  "packageManager": "npm@11.6.0",
   "description": "Two-Wheeler Crash Detection & Emergency Response App",
   "workspaces": [
     "apps/*",

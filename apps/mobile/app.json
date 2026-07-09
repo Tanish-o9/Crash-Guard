@@ -39,6 +39,7 @@
         "android.permission.BODY_SENSORS",
         "android.permission.HIGH_SAMPLING_RATE_SENSORS",
         "android.permission.CALL_PHONE",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
         "android.permission.SEND_SMS",
         "android.permission.RECORD_AUDIO",
         "android.permission.FOREGROUND_SERVICE",

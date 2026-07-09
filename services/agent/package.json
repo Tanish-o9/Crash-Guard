@@ -1,0 +1,9 @@
+{
+  "name": "@crashguard/agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CrashGuard AI agent service (FastAPI + Amazon Bedrock Nova Pro)",
+  "scripts": {
+    "dev": "uvicorn main:app --reload --port 8100"
+  }
+}

@@ -127,7 +127,16 @@ export const useUserStore = create<UserStore>((set, get) => ({
         }))
       );
       if (error) throw error;
-      set({ isLoading: false });
+      // Reflect the saved contacts into live state immediately, so the emergency
+      // orchestrator sees them without requiring an app restart / re-login.
+      set({
+        isLoading: false,
+        emergencyContacts: onboardingDraft.emergencyContacts.map((c) => ({
+          name: c.name.trim(),
+          phone: c.phone.trim(),
+          priorityOrder: c.priorityOrder,
+        })) as EmergencyContact[],
+      });
       return true;
     } catch (err: any) {
       set({ isLoading: false, error: err.message });

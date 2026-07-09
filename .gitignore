@@ -12,6 +12,25 @@ out/
 ios/
 android/
 
+# ...but DO track native source for our custom local Expo modules
+# (silent SMS + background call). These were previously lost to the
+# blanket `android/` rule above and never pushed to GitHub.
+!apps/mobile/modules/native-sms/android/
+!apps/mobile/modules/native-sms/android/**
+!apps/mobile/modules/native-call/android/
+!apps/mobile/modules/native-call/android/**
+!apps/mobile/modules/native-widget/android/
+!apps/mobile/modules/native-widget/android/**
+!apps/mobile/modules/native-tts/android/
+!apps/mobile/modules/native-tts/android/**
+
+# Re-ignore build outputs inside custom native modules
+apps/mobile/modules/native-call/android/build/
+apps/mobile/modules/native-sms/android/build/
+apps/mobile/modules/native-tts/android/build/
+apps/mobile/modules/native-widget/android/build/
+
+
 # Turborepo
 .turbo/
 

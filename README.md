@@ -14,15 +14,16 @@ CrashGuard is a mobile app that passively detects motorcycle/scooter crashes usi
 ## 🛠️ Tech Stack
 
 - **Mobile App**: React Native (Expo), TypeScript, Zustand
-- **Backend API**: Node.js, TypeScript
+- **AI Agent**: Python, FastAPI, Amazon Bedrock (Nova Pro) — composes localized dispatcher/hospital/relative messages; server-side Google Places hospital search
 - **Machine Learning**: Python, FastAPI, NumPy (Anomaly Detection)
 - **Database & Auth**: Supabase (PostgreSQL)
+- **Emergency dispatch**: Android native `SmsManager` + `ACTION_CALL` with a speakerphone "acoustic bridge" (no telephony provider, no Twilio)
 
 ---
 
 ## 🚀 How to Run the Project Locally
 
-Follow these exact steps to run the complete project (Mobile App + ML Backend + Node Backend).
+Follow these exact steps to run the complete project (Mobile App + ML Backend + AI Agent Backend).
 
 ### 1. Prerequisites
 Make sure you have installed on your machine:
@@ -55,12 +56,20 @@ pip install -r requirements.txt
 uvicorn main:app --reload --port 8000
 ```
 
-#### Terminal 2: Start the Node.js API (TypeScript)
-This handles communication with emergency services and SMS.
+#### Terminal 2: Start the AI Agent API (Python + Bedrock)
+This composes the localized emergency scripts/messages (Amazon Bedrock Nova Pro) and
+does server-side hospital search. Falls back to deterministic templates if Bedrock is
+unreachable, so the emergency path never depends on it.
 ```bash
-cd services/api
-npm run dev
+cd services/agent
+python -m venv venv
+# On Windows: venv\Scripts\activate
+pip install -r requirements.txt
+# Copy .env.example -> .env and set AWS_BEARER_TOKEN_BEDROCK (+ GOOGLE_PLACES_API_KEY)
+uvicorn main:app --reload --port 8100
 ```
+> Region `ap-south-1` requires the Nova Pro inference profile `apac.amazon.nova-pro-v1:0`
+> (already set as the default in `.env.example`).
 
 #### Terminal 3: Start the Mobile App (React Native/Expo)
 This is the actual app UI. We use custom native modules for Android (for silent SMS and calling), so the commands differ based on your device.
@@ -109,7 +118,7 @@ CrashGuard/
 ├── apps/
 │   └── mobile/          # The React Native Expo App (UI & Core Logic)
 ├── services/
-│   ├── api/             # Node.js backend for SOS/SMS dispatch
+│   ├── agent/           # Python AI-agent backend (Bedrock Nova Pro) for scripts + hospital search
 │   └── ml/              # Python FastAPI backend for Crash Detection
 ├── supabase/            # Database schemas and SQL configurations
 └── packages/            # Shared code across the monorepo

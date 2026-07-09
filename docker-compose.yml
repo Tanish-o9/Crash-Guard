@@ -1,18 +1,16 @@
 version: '3.9'
 
 services:
-  api:
+  agent:
     build:
-      context: ./services/api
+      context: ./services/agent
       dockerfile: Dockerfile
     ports:
-      - "4000:4000"
-    environment:
-      - NODE_ENV=development
+      - "8100:8100"
     env_file:
-      - ./services/api/.env
+      - ./services/agent/.env
     volumes:
-      - ./services/api/src:/app/src
+      - ./services/agent:/app
     depends_on:
       - ml
 
