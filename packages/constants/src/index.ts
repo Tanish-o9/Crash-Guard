@@ -51,6 +51,15 @@ export const EMERGENCY_MOCK_NUMBER = '+919999999999'; // Replace with your test 
 /** Whether to use the real emergency number (set to false until legal research done) */
 export const USE_REAL_EMERGENCY_NUMBER = false;
 
+/**
+ * DEMO ONLY: Twilio trial can only call verified numbers. For the demo, all outbound
+ * AI voice calls whose real destination isn't verified (e.g. hospitals) are routed to
+ * this verified number instead. The UI still shows the real number that WOULD be dialed.
+ * Set USE_REAL_DESTINATION_NUMBERS = true once the Twilio account is upgraded.
+ */
+export const DEMO_VERIFIED_NUMBER = '+919313602342';
+export const USE_REAL_DESTINATION_NUMBERS = false;
+
 // ─── Location Sharing ─────────────────────────────────────────────────────────
 
 /** How often to update live location during an active incident (seconds) */

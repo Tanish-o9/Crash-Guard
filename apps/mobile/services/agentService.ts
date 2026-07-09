@@ -172,7 +172,7 @@ export const agentService = {
     }
   },
 
-  /** Nearest hospitals via the backend's server-side Google Places lookup. */
+  /** Nearest hospitals via the backend's server-side Amazon Location lookup. */
   async getNearbyHospitals(lat: number, lng: number): Promise<Hospital[] | null> {
     const data = await getJson<
       Array<{
@@ -182,7 +182,7 @@ export const agentService = {
         lat: number;
         lng: number;
         distance_km: number;
-        rating?: number;
+        phone?: string;
       }>
     >(`/hospital/nearby?lat=${lat}&lng=${lng}`);
     if (!data) return null;
@@ -193,36 +193,55 @@ export const agentService = {
       lat: h.lat,
       lng: h.lng,
       distanceKm: h.distance_km,
-      rating: h.rating,
+      phoneNumber: h.phone,
     }));
   },
 
-  /** Fetch a hospital's dialable phone number via Google Place Details. */
-  async getHospitalDetails(placeId: string): Promise<{
-    placeId: string;
-    name: string | null;
-    phone: string | null;
-    formattedPhone: string | null;
-    lat: number | null;
-    lng: number | null;
-  } | null> {
-    const data = await getJson<{
-      place_id: string;
-      name: string | null;
-      phone: string | null;
-      formatted_phone: string | null;
-      lat: number | null;
-      lng: number | null;
-    }>(`/hospital/details?place_id=${encodeURIComponent(placeId)}`);
+  /** Fetch a hospital's dialable phone number via Amazon Location GetPlace. */
+  async getHospitalDetails(placeId: string): Promise<{ placeId: string; phone: string | null } | null> {
+    const data = await getJson<{ place_id: string; phone: string | null }>(
+      `/hospital/details?place_id=${encodeURIComponent(placeId)}`,
+    );
     if (!data) return null;
-    return {
-      placeId: data.place_id,
-      name: data.name,
-      phone: data.phone,
-      formattedPhone: data.formatted_phone,
-      lat: data.lat,
-      lng: data.lng,
-    };
+    return { placeId: data.place_id, phone: data.phone };
+  },
+
+  /**
+   * Place a REAL AI-voice pre-alert call to a hospital via Twilio (samaritan
+   * "I have a vehicle" flow). Returns call status, or null if backend unreachable.
+   */
+  async callHospital(p: {
+    to: string;
+    hospitalName?: string | null;
+    victims?: number;
+    severity?: string | null;
+    etaMinutes?: number | null;
+    summary?: string | null;
+  }): Promise<{ sid: string | null; status: string; modelUsed: string; error?: string } | null> {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+      const res = await fetch(`${AGENT_URL}/call/hospital`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: p.to,
+          hospital_name: p.hospitalName ?? null,
+          victims: p.victims ?? 1,
+          severity: p.severity ?? null,
+          eta_minutes: p.etaMinutes ?? null,
+          summary: p.summary ?? null,
+        }),
+        signal: controller.signal,
+      });
+      clearTimeout(timer);
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) return { sid: null, status: 'failed', modelUsed: '', error: String(body?.detail ?? res.status) };
+      return { sid: body.sid, status: body.status, modelUsed: body.model_used };
+    } catch (e) {
+      console.warn('[AgentService] /call/hospital unreachable:', e);
+      return null;
+    }
   },
 
   /** Compose the spoken hospital pre-alert (one segment per language). */

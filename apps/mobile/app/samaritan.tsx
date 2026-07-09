@@ -21,7 +21,11 @@ import { emergencyService } from '@/services/emergencyService';
 import { placeCall, setSpeakerphone } from '@/modules/native-call';
 import { speakInCall } from '@/modules/native-tts';
 import { languageChainForLocation, ttsLocale } from '@/services/languageService';
-import { EMERGENCY_MOCK_NUMBER } from '@crashguard/constants';
+import {
+  EMERGENCY_MOCK_NUMBER,
+  DEMO_VERIFIED_NUMBER,
+  USE_REAL_DESTINATION_NUMBERS,
+} from '@crashguard/constants';
 
 export default function SamaritanScreen() {
   const router = useRouter();
@@ -44,6 +48,9 @@ export default function SamaritanScreen() {
     setLoading,
     reset,
   } = useSamaritanStore();
+
+  // Small UI note shown after a hospital pre-alert (real vs demo number).
+  const [dispatchInfo, setDispatchInfo] = useState<string | null>(null);
 
   // Reset store on mount
   useEffect(() => {
@@ -186,47 +193,45 @@ export default function SamaritanScreen() {
     lat: number;
     lng: number;
     distanceKm: number;
+    phoneNumber?: string;
   }) => {
+    // 1. Open the map immediately, navigating the samaritan to the hospital
+    //    (runs in parallel with the pre-alert call below).
     Linking.openURL(
       `https://www.google.com/maps/dir/?api=1&destination=${h.lat},${h.lng}`,
     ).catch(() => {});
 
-    let languages: string[] = ['hi', 'en'];
-    try {
-      if (lat && lng) languages = (await languageChainForLocation(lat, lng)).chain;
-    } catch {
-      // keep default
-    }
+    // 2. Resolve the hospital's REAL phone (from the nearby result, else a lookup).
+    let realPhone = h.phoneNumber ?? null;
+    if (!realPhone) realPhone = (await agentService.getHospitalDetails(h.placeId))?.phone ?? null;
 
+    // 3. Decide which number to actually dial. On the Twilio trial we can only call
+    //    verified numbers, so route the demo call to DEMO_VERIFIED_NUMBER while still
+    //    surfacing the real hospital number in the UI.
+    const dialTo = USE_REAL_DESTINATION_NUMBERS ? realPhone : DEMO_VERIFIED_NUMBER;
     const etaMinutes = Math.max(1, Math.round(h.distanceKm * 3));
-    const segs = await agentService.getHospitalPrealert({
-      hospitalName: h.name,
-      victims: nlpResult?.estimatedVictims ?? 1,
-      severity: nlpResult?.severity ?? null,
-      etaMinutes,
-      summary: nlpResult?.summary ?? undefined,
-      languages,
-    });
 
-    // Look up the hospital's phone number and place a real call if available.
-    const details = await agentService.getHospitalDetails(h.placeId);
-    const phone = details?.phone ?? null;
-    if (phone) {
-      try {
-        await placeCall(phone);
-      } catch {
-        Linking.openURL(`tel:${phone}`).catch(() => {});
-      }
-      await new Promise((r) => setTimeout(r, 6000)); // wait for connect
-      await setSpeakerphone(true);
+    setDispatchInfo(
+      USE_REAL_DESTINATION_NUMBERS
+        ? `Pre-alerting ${h.name}${realPhone ? ` at ${realPhone}` : ''}…`
+        : `Pre-alerting ${h.name}. Real number: ${realPhone ?? 'not listed'} — demo call placed to ${DEMO_VERIFIED_NUMBER}.`,
+    );
+
+    // 4. Place the AI pre-alert call via Twilio (cloud) — the phone can't carry AI
+    //    voice on a cellular call, so this comes from the backend.
+    if (dialTo) {
+      const r = await agentService.callHospital({
+        to: dialTo,
+        hospitalName: h.name,
+        victims: nlpResult?.estimatedVictims ?? 1,
+        severity: nlpResult?.severity ?? null,
+        etaMinutes,
+        summary: nlpResult?.summary ?? undefined,
+      });
+      console.log(`[Hospital pre-alert] ${h.name} → ${dialTo}: ${r?.status ?? 'unreachable'}${r?.error ? ' — ' + r.error : ''}`);
+    } else {
+      console.log(`[Hospital pre-alert] no number to dial for ${h.name}`);
     }
-
-    for (const seg of segs ?? []) {
-      await speakInCall(seg.text, ttsLocale(seg.lang));
-    }
-
-    if (phone) await setSpeakerphone(false);
-    console.log(`[Pre-Alert] ${h.name} (${h.placeId}) phone=${phone ?? 'n/a'}`);
   };
 
   // ─── Renderers ──────────────────────────────────────────────────────────────
@@ -320,8 +325,14 @@ export default function SamaritanScreen() {
   const renderHospital = () => (
     <View style={styles.content}>
       <Text style={styles.title}>Nearby Hospitals</Text>
-      <Text style={styles.subtitle}>You indicated you can transport. (Powered by Google Places)</Text>
-      
+      <Text style={styles.subtitle}>You indicated you can transport. (Powered by Amazon Location)</Text>
+
+      {dispatchInfo && (
+        <View style={styles.dispatchNote}>
+          <Text style={styles.dispatchNoteText}>{dispatchInfo}</Text>
+        </View>
+      )}
+
       {isLoading ? (
         <View style={{ padding: 40, alignItems: 'center' }}>
           <ActivityIndicator size="small" color="#FF3B3B" />
@@ -333,7 +344,9 @@ export default function SamaritanScreen() {
           <View key={h.placeId} style={styles.hospitalCard}>
             <View style={{ flex: 1 }}>
               <Text style={styles.hospitalName} numberOfLines={1}>{h.name}</Text>
-              <Text style={styles.hospitalDist}>{h.distanceKm.toFixed(1)} km away • {h.rating ? `★ ${h.rating}` : 'Unrated'}</Text>
+              <Text style={styles.hospitalDist}>
+                {h.distanceKm.toFixed(1)} km away{h.phoneNumber ? ` • ${h.phoneNumber}` : ' • no number listed'}
+              </Text>
               <Text style={{ fontSize: 11, color: '#555566', marginTop: 4 }} numberOfLines={1}>{h.address}</Text>
             </View>
             <TouchableOpacity
@@ -345,7 +358,7 @@ export default function SamaritanScreen() {
           </View>
         ))
       )}
-      
+
       <TouchableOpacity style={[styles.secondaryBtn, { marginTop: 12 }]} onPress={() => next()}>
         <Text style={styles.secondaryBtnText}>Skip / Finish</Text>
       </TouchableOpacity>
@@ -452,4 +465,13 @@ const styles = StyleSheet.create({
   hospitalDist: { fontSize: 14, color: '#666680', marginBottom: 16 },
   navBtn: { backgroundColor: '#4285F4', borderRadius: 10, padding: 12, alignItems: 'center' },
   navBtnText: { color: '#FFF', fontWeight: '700' },
+  dispatchNote: {
+    backgroundColor: '#1A2A16',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#2E4A26',
+    padding: 12,
+    marginBottom: 12,
+  },
+  dispatchNoteText: { fontSize: 12, color: '#9CCB8C', lineHeight: 17 },
 });

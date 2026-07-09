@@ -19,7 +19,12 @@ class Settings(BaseSettings):
     # The emergency path must never block on the network.
     BEDROCK_TIMEOUT_SECONDS: float = 6.0
 
-    # Google Places
+    # Amazon Location Service (Places API v2 / geo-places) — hospital search + reverse geocode.
+    # An API key is the simplest auth; if left blank, boto3 falls back to ambient AWS creds.
+    AMAZON_LOCATION_API_KEY: str = ""
+    AMAZON_LOCATION_REGION: str = "ap-south-1"
+
+    # Google Places (legacy — being replaced by Amazon Location; kept as optional fallback)
     GOOGLE_PLACES_API_KEY: str = ""
 
     # Twilio (outbound AI voice call to relatives — the phone can't put AI audio
