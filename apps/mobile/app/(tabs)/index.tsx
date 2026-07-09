@@ -3,17 +3,31 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  Switch,
   Animated,
   Easing,
+  ScrollView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSensorPipeline } from '@/hooks/useSensorPipeline';
 import { useSensorStore } from '@/store/sensorStore';
 import { useUserStore } from '@/store/userStore';
 import { useCrashDetection } from '@/hooks/useCrashDetection';
+
+// Premium Color Palette
+const COLORS = {
+  background: '#050505',
+  card: '#111111',
+  cardBorder: '#222222',
+  neonCyan: '#00E5FF',
+  neonRed: '#FF2A4D',
+  neonOrange: '#FF9100',
+  textPrimary: '#FFFFFF',
+  textSecondary: '#888888',
+};
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -23,339 +37,405 @@ export default function HomeScreen() {
   const { profile } = useUserStore();
   const { detectionPhase, isDetectionEnabled, isAnomalyStage1, isStage2Classifying, isCrashConfirmed } = useCrashDetection();
 
-  // Pulse animation for the active dot
-  const pulseAnim = useRef(new Animated.Value(1)).current;
+  // Premium glow animation for active state
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+  
   useEffect(() => {
-    if (isRiding) {
+    if (isRiding || isMonitoring) {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.4, duration: 600, useNativeDriver: true, easing: Easing.out(Easing.ease) }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true, easing: Easing.in(Easing.ease) }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 1500, useNativeDriver: false, easing: Easing.inOut(Easing.ease) }),
+          Animated.timing(pulseAnim, { toValue: 0, duration: 1500, useNativeDriver: false, easing: Easing.inOut(Easing.ease) }),
         ])
       ).start();
     } else {
-      pulseAnim.setValue(1);
+      pulseAnim.setValue(0);
     }
-  }, [isRiding]);
+  }, [isRiding, isMonitoring]);
 
-  const statusColor = isRiding ? '#FF3B3B' : isMonitoring ? '#FF8C3B' : '#444456';
-  const statusLabel = isRiding ? 'RIDING' : isMonitoring ? 'MONITORING' : 'IDLE';
+  const activeColor = isCrashConfirmed ? COLORS.neonRed : isRiding ? COLORS.neonCyan : isMonitoring ? COLORS.neonOrange : COLORS.cardBorder;
+  const glowShadow = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [5, 20],
+  });
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>
-            {profile?.name ? `Hey, ${profile.name.split(' ')[0]} 👋` : '🏍️ CrashGuard'}
-          </Text>
-          <Text style={styles.subGreeting}>Stay safe on the road</Text>
-        </View>
-        <View style={[styles.statusBadge, { borderColor: statusColor + '44' }]}>
-          <Animated.View
-            style={[styles.statusDot, { backgroundColor: statusColor, transform: [{ scale: pulseAnim }] }]}
-          />
-          <Text style={[styles.statusText, { color: statusColor }]}>{statusLabel}</Text>
-        </View>
-      </View>
-
-      {/* Riding mode card */}
-      <View style={[styles.card, isRiding && styles.cardActive]}>
-        <View style={styles.cardRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>Riding Mode</Text>
-            <Text style={styles.cardSubtitle}>
-              {isRiding
-                ? '🔴 Sensors active — monitoring for crashes'
-                : isMonitoring
-                ? '🟡 Tracking speed — will activate at 10 km/h'
-                : 'Tap to start crash monitoring'}
+    <SafeAreaView style={styles.container} edges={['top']}>
+      {/* Subtle Background Gradient */}
+      <LinearGradient
+        colors={['#0A0F14', '#050505']}
+        style={StyleSheet.absoluteFill}
+      />
+      
+      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        
+        {/* Sleek Header */}
+        <View style={styles.header}>
+          <View>
+            <Text style={styles.greeting}>
+              {profile?.name ? profile.name.split(' ')[0].toUpperCase() : 'RIDER'}
             </Text>
-            {/* Detection phase indicator */}
-            {isRiding && (
-              <View style={[
-                styles.detectionBadge,
-                isAnomalyStage1 && styles.detectionBadgeWarn,
-                isStage2Classifying && styles.detectionBadgeDanger,
-                isCrashConfirmed && styles.detectionBadgeAlarm,
-              ]}>
-                <Text style={styles.detectionBadgeText}>
-                  {isCrashConfirmed ? '🚨 CRASH CONFIRMED'
-                    : isStage2Classifying ? '⚠️ Checking stillness…'
-                    : isAnomalyStage1 ? '⚡ Anomaly detected (1/2)'
-                    : isDetectionEnabled ? '✅ Detection active'
-                    : '⏳ Calibrating…'}
-                </Text>
+            <Text style={styles.subGreeting}>SYSTEM ONLINE</Text>
+          </View>
+          
+          <View style={styles.statusIndicator}>
+            <View style={[styles.statusDot, { backgroundColor: isRiding ? COLORS.neonCyan : COLORS.textSecondary }]} />
+            <Text style={styles.statusText}>{isRiding ? 'ENGAGED' : 'STANDBY'}</Text>
+          </View>
+        </View>
+
+        {/* Central Ride Mode Dashboard (Massive Interactive Button) */}
+        <Animated.View style={[
+          styles.mainCardContainer, 
+          { 
+            shadowColor: activeColor, 
+            shadowOpacity: isRiding || isMonitoring ? 0.6 : 0,
+            shadowRadius: glowShadow,
+            elevation: isRiding || isMonitoring ? 10 : 0
+          }
+        ]}>
+          <TouchableOpacity 
+            activeOpacity={0.9} 
+            onPress={toggleRidingMode}
+            style={[styles.mainCard, { borderColor: activeColor }]}
+          >
+            <LinearGradient
+              colors={isCrashConfirmed ? ['#330A0A', '#111111'] : isRiding ? ['#0A2A2A', '#111111'] : ['#111111', '#111111']}
+              style={styles.mainCardGradient}
+            >
+              <View style={styles.mainCardHeader}>
+                <Text style={styles.mainCardTitle}>{isRiding ? 'RIDE MODE ACTIVE' : 'RIDE MODE OFF'}</Text>
+                {isRiding && (
+                  <View style={[styles.pillBadge, { backgroundColor: activeColor + '33', borderColor: activeColor }]}>
+                    <Text style={[styles.pillText, { color: activeColor }]}>
+                      {isCrashConfirmed ? 'CRASH DETECTED' : isStage2Classifying ? 'ANALYZING...' : 'MONITORING'}
+                    </Text>
+                  </View>
+                )}
               </View>
-            )}
-          </View>
-          <Switch
-            value={isRiding}
-            onValueChange={toggleRidingMode}
-            trackColor={{ false: '#2A2A36', true: '#FF3B3B' }}
-            thumbColor="#FFFFFF"
-            ios_backgroundColor="#2A2A36"
-          />
-        </View>
 
-        {/* Speed indicator (visible when riding) */}
-        {(isRiding || isMonitoring) && (
-          <View style={styles.speedRow}>
-            <Text style={styles.speedValue}>
-              {currentSpeedKmh != null ? `${currentSpeedKmh.toFixed(0)}` : '—'}
+              <Text style={styles.mainCardSub}>
+                {isCrashConfirmed ? 'Initiating emergency sequence.' : isRiding ? 'Sensors locked. Crash detection is running.' : 'Tap anywhere here to engage system.'}
+              </Text>
+
+              {/* Digital Speedometer */}
+              <View style={styles.speedometerContainer}>
+                <Text style={[styles.speedValue, { color: isRiding ? COLORS.textPrimary : COLORS.textSecondary }]}>
+                  {currentSpeedKmh != null ? currentSpeedKmh.toFixed(0) : '00'}
+                </Text>
+                <Text style={styles.speedUnit}>KM/H</Text>
+              </View>
+            </LinearGradient>
+          </TouchableOpacity>
+        </Animated.View>
+
+        {/* Bento Grid layout for stats */}
+        <View style={styles.bentoGrid}>
+          
+          <View style={[styles.bentoBox, styles.bentoSmall]}>
+            <Text style={styles.bentoLabel}>SENSORS</Text>
+            <Text style={[styles.bentoValue, { color: isRiding ? COLORS.neonCyan : COLORS.textSecondary }]}>
+              {isRiding ? 'ONLINE' : 'OFFLINE'}
             </Text>
-            <Text style={styles.speedUnit}>km/h</Text>
-            <View style={styles.speedDivider} />
-            <Text style={styles.windowCount}>
-              {totalWindowsCollected} windows collected
+          </View>
+
+          <View style={[styles.bentoBox, styles.bentoSmall]}>
+            <Text style={styles.bentoLabel}>GPS LOCK</Text>
+            <Text style={[styles.bentoValue, { color: currentSpeedKmh != null ? COLORS.neonCyan : COLORS.textSecondary }]}>
+              {currentSpeedKmh != null ? 'SECURE' : 'SEARCHING'}
             </Text>
           </View>
-        )}
-      </View>
 
-      {/* Status pills row */}
-      <View style={styles.pillsRow}>
-        <StatusPill
-          label="GPS"
-          value={currentSpeedKmh != null ? 'Locked' : 'Off'}
-          active={currentSpeedKmh != null}
-        />
-        <StatusPill
-          label="Sensors"
-          value={isRiding ? 'Active' : 'Off'}
-          active={isRiding}
-        />
-        <StatusPill
-          label="Buffer"
-          value={`${windowBuffer.length}`}
-          active={windowBuffer.length > 0}
-        />
-      </View>
-
-      {/* Feature readout (when riding) */}
-      {isRiding && latestFeatures && (
-        <View style={styles.featuresCard}>
-          <Text style={styles.featuresTitle}>Live sensor features</Text>
-          <View style={styles.featuresGrid}>
-            <FeatureRow label="Peak Accel" value={`${latestFeatures.peakAccelMagnitude} m/s²`} />
-            <FeatureRow label="Peak Jerk" value={`${latestFeatures.peakJerk.toFixed(1)} m/s³`} />
-            <FeatureRow label="Speed Δ" value={`${latestFeatures.gpsSpeedDelta.toFixed(1)} km/h`} />
-            <FeatureRow label="Gyro Spike" value={`${latestFeatures.rotationRateSpike.toFixed(2)} rad/s`} />
+          <View style={[styles.bentoBox, styles.bentoWide]}>
+            <Text style={styles.bentoLabel}>LIVE TELEMETRY</Text>
+            <View style={styles.telemetryRow}>
+              <View>
+                <Text style={styles.telemetrySub}>G-FORCE</Text>
+                <Text style={styles.telemetryData}>{latestFeatures ? `${latestFeatures.peakAccelMagnitude}G` : '--'}</Text>
+              </View>
+              <View>
+                <Text style={styles.telemetrySub}>GYRO (RAD/S)</Text>
+                <Text style={styles.telemetryData}>{latestFeatures ? latestFeatures.rotationRateSpike.toFixed(2) : '--'}</Text>
+              </View>
+              <View>
+                <Text style={styles.telemetrySub}>BUFFER</Text>
+                <Text style={styles.telemetryData}>{windowBuffer.length}/40</Text>
+              </View>
+            </View>
           </View>
-        </View>
-      )}
 
-      {/* Error state */}
-      {lastError && (
-        <View style={styles.errorCard}>
-          <Text style={styles.errorIcon}>⚠️</Text>
-          <Text style={styles.errorText} numberOfLines={2}>{lastError}</Text>
         </View>
-      )}
 
-      {/* Good Samaritan button — always visible */}
-      <TouchableOpacity
-        style={styles.samaritanBtn}
-        activeOpacity={0.85}
-        onPress={() => router.push('/samaritan')}
-      >
-        <Text style={styles.samaritanIcon}>🆘</Text>
-        <View>
-          <Text style={styles.samaritanTitle}>Witnessed an Accident?</Text>
-          <Text style={styles.samaritanSub}>Tap to alert emergency services</Text>
-        </View>
-      </TouchableOpacity>
-
-      {/* Dev tools row */}
-      <View style={styles.devRow}>
+        {/* Action Row */}
         <TouchableOpacity
-          style={styles.testAlarmBtn}
-          onPress={() => router.push('/alarm')}
+          style={styles.samaritanBtn}
           activeOpacity={0.8}
+          onPress={() => router.push('/samaritan')}
         >
-          <Text style={styles.testAlarmText}>🔔 Test Alarm</Text>
+          <LinearGradient
+            colors={['#FF2A4D22', '#111111']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.samaritanGradient}
+          >
+            <View>
+              <Text style={styles.samaritanTitle}>EMERGENCY OVERRIDE</Text>
+              <Text style={styles.samaritanSub}>Report a witnessed crash</Text>
+            </View>
+            <Text style={styles.samaritanArrow}>→</Text>
+          </LinearGradient>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.devBtn}
-          onPress={() => router.push('/(dev)/anomaly-log')}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.devBtnText}>📊 Anomaly Log</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.devBtn}
-          onPress={() => router.push('/(dev)/sensor-dashboard')}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.devBtnText}>⚙️ Sensors</Text>
-        </TouchableOpacity>
-      </View>
+
+        {/* Dev Tools - Hidden behind a clean design */}
+        <View style={styles.devContainer}>
+          <Text style={styles.devTitle}>SYSTEM DIAGNOSTICS</Text>
+          <View style={styles.devRow}>
+            <TouchableOpacity style={styles.devBtn} onPress={() => router.push('/alarm')}>
+              <Text style={styles.devBtnText}>TEST ALARM</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.devBtn} onPress={() => router.push('/(dev)/anomaly-log')}>
+              <Text style={styles.devBtnText}>LOGS</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.devBtn} onPress={() => router.push('/(dev)/sensor-dashboard')}>
+              <Text style={styles.devBtnText}>SENSORS</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        
+        {lastError && (
+          <Text style={styles.errorText}>SYS_ERR: {lastError}</Text>
+        )}
+
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
-function StatusPill({ label, value, active }: { label: string; value: string; active: boolean }) {
-  return (
-    <View style={[styles.pill, active && styles.pillActive]}>
-      <View style={[styles.pillDot, active && styles.pillDotActive]} />
-      <Text style={styles.pillLabel}>{label}</Text>
-      <Text style={[styles.pillValue, active && styles.pillValueActive]}>{value}</Text>
-    </View>
-  );
-}
-
-function FeatureRow({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.featureRow}>
-      <Text style={styles.featureLabel}>{label}</Text>
-      <Text style={styles.featureValue}>{value}</Text>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F0F14', padding: 20 },
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 40,
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 20,
+    alignItems: 'center',
+    marginBottom: 30,
+    marginTop: 10,
   },
-  greeting: { fontSize: 20, fontWeight: '800', color: '#FFFFFF', letterSpacing: -0.3 },
-  subGreeting: { fontSize: 12, color: '#444456', marginTop: 2 },
-  statusBadge: {
+  greeting: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: COLORS.textPrimary,
+    letterSpacing: 2,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  subGreeting: {
+    fontSize: 10,
+    color: COLORS.neonCyan,
+    letterSpacing: 3,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  statusIndicator: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#16161E',
-    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.05)',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    gap: 7,
+    borderRadius: 100,
     borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
-  statusText: { fontSize: 11, fontWeight: '800', letterSpacing: 1 },
-  card: {
-    backgroundColor: '#16161E',
-    borderRadius: 18,
-    padding: 18,
-    marginBottom: 14,
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 8,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+    letterSpacing: 1,
+  },
+  mainCardContainer: {
+    marginBottom: 20,
+    borderRadius: 24,
+  },
+  mainCard: {
+    borderRadius: 24,
     borderWidth: 1.5,
-    borderColor: '#2A2A36',
+    overflow: 'hidden',
   },
-  cardActive: { borderColor: '#FF3B3B44', backgroundColor: '#1A0D0D' },
-  cardRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  cardTitle: { fontSize: 17, fontWeight: '700', color: '#FFFFFF', marginBottom: 4 },
-  cardSubtitle: { fontSize: 12, color: '#666680', lineHeight: 18, maxWidth: 220 },
-  detectionBadge: {
-    marginTop: 8,
-    alignSelf: 'flex-start',
-    borderRadius: 8,
-    paddingHorizontal: 8,
+  mainCardGradient: {
+    padding: 24,
+    minHeight: 220,
+    justifyContent: 'space-between',
+  },
+  mainCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  mainCardTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: COLORS.textPrimary,
+    letterSpacing: 1,
+  },
+  mainCardSub: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    marginTop: 6,
+    fontWeight: '500',
+  },
+  pillBadge: {
+    paddingHorizontal: 10,
     paddingVertical: 4,
-    backgroundColor: '#0D1A0D',
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#2ECC7133',
   },
-  detectionBadgeWarn: { backgroundColor: '#1A150A', borderColor: '#F39C1244' },
-  detectionBadgeDanger: { backgroundColor: '#1A0D00', borderColor: '#FF8C3B55' },
-  detectionBadgeAlarm: { backgroundColor: '#1A0000', borderColor: '#FF3B3B66' },
-  detectionBadgeText: { fontSize: 10, fontWeight: '700', color: '#2ECC71', letterSpacing: 0.3 },
-  speedRow: {
-    flexDirection: 'row',
+  pillText: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  speedometerContainer: {
     alignItems: 'center',
-    marginTop: 14,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: '#2A2A36',
-    gap: 8,
+    justifyContent: 'center',
+    marginTop: 20,
   },
-  speedValue: { fontSize: 28, fontWeight: '900', color: '#FF3B3B', letterSpacing: -1 },
-  speedUnit: { fontSize: 14, color: '#666680', fontWeight: '600', alignSelf: 'flex-end', marginBottom: 4 },
-  speedDivider: { flex: 1 },
-  windowCount: { fontSize: 11, color: '#444456', fontWeight: '600' },
-  pillsRow: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  pill: {
+  speedValue: {
+    fontSize: 84,
+    fontWeight: '900',
+    letterSpacing: -4,
+    lineHeight: 90,
+  },
+  speedUnit: {
+    fontSize: 14,
+    color: COLORS.textSecondary,
+    fontWeight: '800',
+    letterSpacing: 4,
+  },
+  bentoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 20,
+  },
+  bentoBox: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: COLORS.cardBorder,
+  },
+  bentoSmall: {
     flex: 1,
-    backgroundColor: '#16161E',
-    borderRadius: 12,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#2A2A36',
-    alignItems: 'center',
-    gap: 4,
+    minWidth: '45%',
   },
-  pillActive: { borderColor: '#FF3B3B33' },
-  pillDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#444' },
-  pillDotActive: { backgroundColor: '#FF3B3B' },
-  pillLabel: { fontSize: 10, fontWeight: '700', color: '#444456', letterSpacing: 0.5, textTransform: 'uppercase' },
-  pillValue: { fontSize: 12, fontWeight: '700', color: '#666680' },
-  pillValueActive: { color: '#FF3B3B' },
-  featuresCard: {
-    backgroundColor: '#16161E',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: '#2A2A36',
+  bentoWide: {
+    width: '100%',
   },
-  featuresTitle: { fontSize: 11, fontWeight: '700', color: '#444456', letterSpacing: 0.5, marginBottom: 10, textTransform: 'uppercase' },
-  featuresGrid: { gap: 8 },
-  featureRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  featureLabel: { fontSize: 12, color: '#666680' },
-  featureValue: { fontSize: 12, fontWeight: '700', color: '#FFFFFF' },
-  errorCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1A0A0A',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: '#6B1A1A',
-    gap: 10,
-  },
-  errorIcon: { fontSize: 16 },
-  errorText: { flex: 1, fontSize: 12, color: '#FF6B6B', lineHeight: 17 },
-  samaritanBtn: {
-    backgroundColor: '#1A0D0D',
-    borderRadius: 18,
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
+  bentoLabel: {
+    fontSize: 10,
+    color: COLORS.textSecondary,
+    fontWeight: '800',
+    letterSpacing: 2,
     marginBottom: 12,
-    borderWidth: 1.5,
-    borderColor: '#FF3B3B33',
-    flex: 1,
   },
-  samaritanIcon: { fontSize: 32 },
-  samaritanTitle: { fontSize: 16, fontWeight: '800', color: '#FF3B3B', marginBottom: 2 },
-  samaritanSub: { fontSize: 12, color: '#666680' },
-  devRow: {
+  bentoValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 1,
+  },
+  telemetryRow: {
     flexDirection: 'row',
-    gap: 10,
+    justifyContent: 'space-between',
+  },
+  telemetrySub: {
+    fontSize: 9,
+    color: COLORS.textSecondary,
+    fontWeight: '700',
+    letterSpacing: 1,
     marginBottom: 4,
   },
-  testAlarmBtn: {
-    flex: 1,
-    borderRadius: 12,
-    padding: 12,
-    alignItems: 'center',
-    borderWidth: 1.5,
-    borderColor: '#FF3B3B44',
-    backgroundColor: '#1A0808',
+  telemetryData: {
+    fontSize: 16,
+    color: COLORS.textPrimary,
+    fontWeight: '700',
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
-  testAlarmText: { fontSize: 12, color: '#FF6B6B', fontWeight: '700' },
-  devBtn: {
-    borderRadius: 12,
-    padding: 12,
-    alignItems: 'center',
+  samaritanBtn: {
+    borderRadius: 16,
+    overflow: 'hidden',
     borderWidth: 1,
-    borderColor: '#1E1E2A',
-    borderStyle: 'dashed',
-    justifyContent: 'center',
-    paddingHorizontal: 18,
+    borderColor: '#FF2A4D44',
+    marginBottom: 30,
   },
-  devBtnText: { fontSize: 12, color: '#2A2A40', fontWeight: '600' },
+  samaritanGradient: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+  },
+  samaritanTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: COLORS.neonRed,
+    letterSpacing: 1,
+  },
+  samaritanSub: {
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    marginTop: 4,
+  },
+  samaritanArrow: {
+    fontSize: 24,
+    color: COLORS.neonRed,
+  },
+  devContainer: {
+    borderTopWidth: 1,
+    borderTopColor: COLORS.cardBorder,
+    paddingTop: 20,
+  },
+  devTitle: {
+    fontSize: 9,
+    color: COLORS.textSecondary,
+    fontWeight: '800',
+    letterSpacing: 3,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  devRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  devBtn: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  devBtnText: {
+    fontSize: 10,
+    color: '#666',
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  errorText: {
+    color: COLORS.neonRed,
+    fontSize: 10,
+    textAlign: 'center',
+    marginTop: 20,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  }
 });

@@ -24,9 +24,9 @@ const HOST = process.env.HOST ?? '0.0.0.0';
 async function start() {
   try {
     // ─── Plugins ────────────────────────────────────────────────────────────────
-    await app.register(helmet);
+    await app.register(helmet, { contentSecurityPolicy: false });
     await app.register(cors, {
-      origin: process.env.ALLOWED_ORIGINS?.split(',') ?? ['http://localhost:3000'],
+      origin: true,
       credentials: true,
     });
     await app.register(rateLimit, { max: 100, timeWindow: '1 minute' });

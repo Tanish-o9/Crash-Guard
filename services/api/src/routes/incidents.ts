@@ -18,6 +18,18 @@ const updateIncidentSchema = z.object({
   contacts_notified: z.boolean().optional(),
 });
 
+const callEmergencySchema = z.object({
+  targetPhone: z.string(),
+  ttsMessage: z.string(),
+});
+
+const notifyContactsSchema = z.object({
+  contacts: z.array(z.string()),
+  smsBody: z.string(),
+});
+
+import { makeEmergencyCall, sendSMS } from '../lib/sms';
+
 export default async function incidentRoutes(app: FastifyInstance) {
   
   // ─── Protected Routes ───────────────────────────────────────────────────────
@@ -73,6 +85,41 @@ export default async function incidentRoutes(app: FastifyInstance) {
       }
       return data;
     });
+
+    // ─── Twilio Emergency Call ───
+    protectedApp.post('/:id/call-emergency', async (req: AuthenticatedRequest, reply) => {
+      const parsed = callEmergencySchema.safeParse(req.body);
+      if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues });
+
+      const { targetPhone, ttsMessage } = parsed.data;
+
+      // In a production app, we would verify the incident ID belongs to the user,
+      // but for the hackathon this is fine.
+      const success = await makeEmergencyCall(targetPhone, ttsMessage);
+      
+      if (!success) {
+        return reply.status(500).send({ error: 'Failed to initiate Twilio emergency call' });
+      }
+      
+      return { success: true };
+    });
+
+    // ─── Twilio Silent SMS ───
+    protectedApp.post('/:id/notify-contacts', async (req: AuthenticatedRequest, reply) => {
+      const parsed = notifyContactsSchema.safeParse(req.body);
+      if (!parsed.success) return reply.status(400).send({ error: parsed.error.issues });
+
+      const { contacts, smsBody } = parsed.data;
+
+      let sentCount = 0;
+      for (const phone of contacts) {
+        // Send asynchronously to avoid blocking the loop for too long
+        const success = await sendSMS(phone, smsBody);
+        if (success) sentCount++;
+      }
+      
+      return { success: true, sentCount };
+    });
   });
 
   // ─── Public Routes ──────────────────────────────────────────────────────────
@@ -87,11 +134,13 @@ export default async function incidentRoutes(app: FastifyInstance) {
       .single();
 
     if (error || !incident) {
-      return reply.status(404).send({ error: 'Tracking link invalid or expired' });
+      reply.type('text/html').status(404);
+      return `<html><body style="font-family:sans-serif;text-align:center;padding:50px;"><h2>Tracking link invalid or expired</h2></body></html>`;
     }
 
     if (new Date(incident.tracking_expires_at) < new Date()) {
-      return reply.status(410).send({ error: 'Tracking link has expired' });
+      reply.type('text/html').status(410);
+      return `<html><body style="font-family:sans-serif;text-align:center;padding:50px;"><h2>Tracking link has expired</h2></body></html>`;
     }
 
     // Get latest location from real-time table
@@ -104,9 +153,38 @@ export default async function incidentRoutes(app: FastifyInstance) {
 
     const latestLocation = locUpdates?.[0] || { lat: incident.lat, lng: incident.lng, timestamp: incident.triggered_at };
 
-    return {
-      incident,
-      latestLocation,
-    };
+    const userObj = incident.user as any;
+    const userName = Array.isArray(userObj) ? userObj[0]?.name : userObj?.name;
+    const nameStr = userName || 'A rider';
+    const mapsLink = `https://maps.google.com/?q=${latestLocation.lat},${latestLocation.lng}`;
+
+    reply.type('text/html');
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CrashGuard Live Tracking</title>
+  <style>
+    body { font-family: 'Courier New', Courier, monospace; background-color: #050505; color: #FFFFFF; text-align: center; padding: 20px; margin: 0; }
+    .card { background-color: #111111; border: 1px solid #222222; border-radius: 16px; padding: 30px; max-width: 400px; margin: 40px auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    h1 { color: #FF2A4D; margin-top: 0; font-size: 28px; letter-spacing: 2px; }
+    .status { color: #00E5FF; font-weight: bold; margin-bottom: 24px; font-size: 16px; line-height: 1.5; }
+    .time { color: #888888; font-size: 14px; margin-bottom: 30px; }
+    .btn { display: inline-block; background-color: #00E5FF; color: #050505; padding: 16px 28px; text-decoration: none; border-radius: 12px; font-weight: bold; font-size: 18px; margin-top: 10px; box-shadow: 0 6px 20px rgba(0, 229, 255, 0.4); transition: transform 0.2s; }
+    .btn:active { transform: scale(0.95); }
+    .coord { color: #444444; font-size: 12px; margin-top: 30px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>🚨 CRASH ALERT</h1>
+    <div class="status">${nameStr} has been involved in an incident and has shared their live location with you.</div>
+    <div class="time">Last seen: ${new Date(latestLocation.timestamp).toLocaleTimeString()}</div>
+    <a href="${mapsLink}" class="btn">Open in Google Maps →</a>
+    <div class="coord">Lat: ${latestLocation.lat.toFixed(5)}<br>Lng: ${latestLocation.lng.toFixed(5)}</div>
+  </div>
+</body>
+</html>`;
   });
 }

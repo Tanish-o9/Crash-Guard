@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StyleSheet, View, ActivityIndicator } from 'react-native';
 import { useEffect } from 'react';
 import { useAuthStore } from '@/store/authStore';
+import { useUserStore } from '@/store/userStore';
 import { useCalibrationStore } from '@/store/calibrationStore';
 
 function LoadingScreen() {
@@ -18,15 +19,17 @@ function LoadingScreen() {
 export default function RootLayout() {
   const { isLoading, session, isOnboarded, initialize } = useAuthStore();
   const loadBaseline = useCalibrationStore(s => s.loadBaseline);
+  const loadProfile = useUserStore(s => s.loadProfile);
 
   useEffect(() => {
     initialize();
   }, []);
 
-  // Load baseline when session becomes available
+  // Load baseline and user profile when session becomes available
   useEffect(() => {
     if (session?.user.id) {
       loadBaseline();
+      loadProfile(session.user.id);
     }
   }, [session?.user.id]);
 

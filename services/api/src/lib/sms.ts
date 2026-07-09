@@ -33,3 +33,38 @@ export async function sendSMS(to: string, body: string): Promise<boolean> {
     return false;
   }
 }
+
+/**
+ * Places an automated voice call using Twilio Programmable Voice, reading a TTS message.
+ */
+export async function makeEmergencyCall(to: string, ttsMessage: string): Promise<boolean> {
+  try {
+    if (!client || !fromPhone) {
+      console.log(`[MOCK VOICE CALL] To: ${to}\nMessage: ${ttsMessage}`);
+      return true;
+    }
+
+    // XML-escape the TTS message to avoid TwiML parse errors
+    const escaped = ttsMessage
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+
+    const twiml = `<Response><Say voice="alice">${escaped}</Say></Response>`;
+
+    console.log(`[VOICE CALL] Initiating call to ${to} from ${fromPhone}...`);
+    const call = await client.calls.create({
+      twiml,
+      to,
+      from: fromPhone,
+    });
+
+    console.log(`[VOICE CALL] Initiated to ${to}. SID: ${call.sid}`);
+    return true;
+  } catch (err: any) {
+    console.error(`[VOICE CALL Error] Failed to call ${to}:`, err?.message || err);
+    return false;
+  }
+}

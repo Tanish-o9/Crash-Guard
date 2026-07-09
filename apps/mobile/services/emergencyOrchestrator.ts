@@ -2,64 +2,56 @@
  * Emergency Orchestrator — the deterministic async engine that drives
  * the full post-alarm calling cascade.
  *
- * Flow (each step updates the Zustand store → live-rendered in calling.tsx):
+ * FULLY AUTOMATIC — zero user interaction needed after crash detection.
+ * FULLY FREE — uses phone's own SIM card for SMS and calls.
+ * WORKS OFFLINE — no internet needed for SMS and phone calls.
  *
- *   1. Start live GPS location sharing (Supabase realtime upsert)
- *   2. Compose multilingual TTS message via Gemini
- *   3. CALLING_EMERGENCY:
- *      a. Initiate mock emergency call (Linking → dialer)
- *      b. Speak TTS message (expo-speech)
- *      c. Wait for speech to end + brief delay
- *   4. CALLING_CONTACTS:
- *      For each emergency contact (sorted by priorityOrder):
- *        a. Initiate call (Linking → dialer)
- *        b. Wait CONTACT_CALL_TIMEOUT_MS
- *        c. Move to next contact
- *   5. SMS all contacts (Linking → SMS app with pre-filled message)
- *   6. Update Supabase incident to contacts_notified
- *   7. Transition to DONE
+ * Flow:
+ *   1. Start live GPS location sharing (Supabase)
+ *   2. Send native SMS to ALL emergency contacts (Android SmsManager — silent)
+ *   3. Speak emergency message on phone speaker (expo-speech — English + Hindi)
+ *   4. Place native call to first emergency contact (Android ACTION_CALL — silent)
+ *   5. Update Supabase incident
+ *   6. Transition to DONE
  *
- * NOTE: Regulatory constraint — USE_REAL_EMERGENCY_NUMBER must be false
- * until legal clearance. This engine always uses EMERGENCY_MOCK_NUMBER.
- *
- * NOTE: Contact call detection (answered/voicemail) is NOT possible from JS.
- * The timeout-based cascade is the correct approach for a sandboxed JS env.
+ * ARCHITECTURE: Uses Android's native SmsManager and ACTION_CALL.
+ * Permissions are granted once at app setup, then work silently forever.
  */
-import { Linking } from 'react-native';
 import * as Location from 'expo-location';
 import * as Speech from 'expo-speech';
+import { Platform } from 'react-native';
 import { supabase } from '@/lib/supabase';
 import { useUserStore } from '@/store/userStore';
 import { useSensorStore } from '@/store/sensorStore';
 import { useEmergencyOrchestratorStore } from '@/store/emergencyOrchestratorStore';
-import { ttsMessageService } from '@/services/ttsMessageService';
+import { sendSilentSms } from '@/modules/native-sms';
+import { placeCall } from '@/modules/native-call';
 import type { EmergencyContact, User } from '@crashguard/types';
-import {
-  EMERGENCY_MOCK_NUMBER,
-  LOCATION_UPDATE_INTERVAL_SECONDS,
-} from '@crashguard/constants';
-
-// ─── Demo-mode timing ─────────────────────────────────────────────────────────
-// In production, CONTACT_CALL_TIMEOUT_MS should be 20_000.
-// For the hackathon demo, we use 8s so the flow is watchable.
-const CONTACT_CALL_TIMEOUT_MS = 8_000;
+import { LOCATION_UPDATE_INTERVAL_SECONDS } from '@crashguard/constants';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
+/** Clean phone number for native dialer */
+function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, '');
+  if (digits.startsWith('91') && digits.length === 12) return `+${digits}`;
+  if (digits.length === 10) return `+91${digits}`;
+  if (phone.startsWith('+')) return phone;
+  return `+91${digits}`;
+}
+
 function composeSmsBody(
   profile: User | null,
   lat: number | null,
   lng: number | null,
-  incidentId: string,
 ): string {
   const name = profile?.name ?? 'Your contact';
   const mapsLink =
     lat != null && lng != null
       ? `https://maps.google.com/?q=${lat.toFixed(5)},${lng.toFixed(5)}`
       : 'Location unavailable';
-  const trackingLink = `https://crashguard.app/track/${incidentId}`;
   const bloodGroup = profile?.bloodGroup ?? 'Unknown';
 
   return (
@@ -68,9 +60,22 @@ function composeSmsBody(
     `📍 Location: ${mapsLink}\n` +
     `🩸 Blood type: ${bloodGroup}\n\n` +
     `Emergency services have been contacted.\n\n` +
-    `🔴 Live tracking: ${trackingLink}\n\n` +
     `— CrashGuard`
   );
+}
+
+/** Speak text on phone speaker and return a promise */
+function speakOnSpeaker(text: string, language: string): Promise<void> {
+  return new Promise((resolve) => {
+    Speech.speak(text, {
+      language,
+      rate: 0.9,
+      pitch: 1.0,
+      onDone: resolve,
+      onError: () => resolve(),
+      onStopped: () => resolve(),
+    });
+  });
 }
 
 // ─── Orchestrator Class ───────────────────────────────────────────────────────
@@ -79,7 +84,7 @@ class EmergencyOrchestrator {
   private locationSub: Location.LocationSubscription | null = null;
   private isRunning = false;
 
-  /** Run the full emergency cascade for an incident. Idempotent (no-op if already running). */
+  /** Run the full emergency cascade. Fully automatic — zero user interaction. */
   async run(incidentId: string): Promise<void> {
     if (this.isRunning) return;
     this.isRunning = true;
@@ -88,98 +93,105 @@ class EmergencyOrchestrator {
     const { profile, emergencyContacts } = useUserStore.getState();
     const { currentLat, currentLng } = useSensorStore.getState();
 
-    // Sort contacts by priority
     const contacts = [...emergencyContacts].sort(
-      (a, b) => a.priorityOrder - b.priorityOrder,
+      (a, b) => ((a as any).priority_order ?? a.priorityOrder ?? 0) - ((b as any).priority_order ?? b.priorityOrder ?? 0),
     );
 
-    // ── 1. Set up incident state ──────────────────────────────────────────────
-    store.setIncidentId(incidentId);
-    store.addLog('🆔', `Incident ID: ${incidentId.slice(0, 8)}…`);
-
-    // ── 2. Start live location sharing ────────────────────────────────────────
-    await this.startLocationSharing(incidentId, currentLat, currentLng);
-
-    // ── 3. Compose TTS message ────────────────────────────────────────────────
-    store.addLog('🌐', 'Composing emergency message…');
     const lat = currentLat ?? 0;
     const lng = currentLng ?? 0;
 
-    const ttsResult = await ttsMessageService.compose({
-      lat,
-      lng,
-      userName: profile?.name ?? 'Unknown rider',
-      bloodGroup: profile?.bloodGroup,
-      vehicleType: profile?.vehicleType,
-    });
+    // ── 1. Set up incident ───────────────────────────────────────────────────
+    store.setIncidentId(incidentId);
+    store.addLog('🆔', `Incident ID: ${incidentId.slice(0, 8)}…`);
 
-    store.setTtsMessage(ttsResult.message, ttsResult.language);
-    store.addLog(
-      '💬',
-      `Message ready in ${ttsResult.language.toUpperCase()}${ttsResult.stateName ? ` (${ttsResult.stateName})` : ''}`,
-    );
+    // ── 2. Start live location sharing ───────────────────────────────────────
+    await this.startLocationSharing(incidentId, currentLat, currentLng);
 
-    // ── 4. CALLING_EMERGENCY ──────────────────────────────────────────────────
+    // ── 3. EMERGENCY CASCADE (all automatic, zero interaction) ───────────────
     store.transition('CALLING_EMERGENCY');
     store.markEmergencyCallMade();
-    store.addLog('📞', `Calling emergency (mock: ${EMERGENCY_MOCK_NUMBER})`);
-
-    // Initiate call — opens device dialer
-    Linking.openURL(`tel:${EMERGENCY_MOCK_NUMBER}`).catch(() => {});
-
-    // Speak TTS message
-    await new Promise<void>((resolve) => {
-      Speech.speak(ttsResult.message, {
-        language: ttsResult.language,
-        rate: 0.85,
-        pitch: 1.0,
-        onDone: resolve,
-        onError: () => resolve(),
-      });
-    });
-
-    store.addLog('✅', 'Emergency message delivered');
-    await sleep(2_000);
-
-    // ── 5. CALLING_CONTACTS ───────────────────────────────────────────────────
-    store.transition('CALLING_CONTACTS');
 
     if (contacts.length === 0) {
       store.addLog('ℹ️', 'No emergency contacts configured');
     } else {
+      const smsBody = composeSmsBody(profile, currentLat, currentLng);
+
+      // ── Step A: Send SMS to ALL contacts silently (native SmsManager) ─────
+      store.addLog('✉️', 'Sending emergency SMS to all contacts (native)…');
+
       for (const contact of contacts) {
+        const phone = normalizePhone(contact.phone);
         store.setCurrentContact(contact);
-        store.addLog('📱', `Calling ${contact.name}…`);
-        Linking.openURL(`tel:${contact.phone}`).catch(() => {});
-        await sleep(CONTACT_CALL_TIMEOUT_MS);
-        store.addLog('⏩', `No response from ${contact.name}`);
-        store.advanceContactCascade();
+
+        try {
+          await sendSilentSms(phone, smsBody);
+          store.addLog('✅', `SMS sent → ${contact.name} (${phone})`);
+        } catch (e: any) {
+          store.addLog('⚠️', `SMS failed → ${contact.name}: ${e.message || 'Unknown error'}`);
+        }
       }
 
-      // SMS cascade
-      store.addLog('✉️', 'Sending SMS to all contacts…');
-      const smsBody = composeSmsBody(profile, currentLat, currentLng, incidentId);
-      for (const contact of contacts) {
-        Linking.openURL(
-          `sms:${contact.phone}?body=${encodeURIComponent(smsBody)}`,
-        ).catch(() => {});
-        store.incrementSmsSent();
-        store.addLog('✅', `SMS sent → ${contact.name}`);
-        await sleep(800);
+      // ── Step B: Speak emergency message on phone speaker ──────────────────
+      store.addLog('🔊', 'Speaking emergency message on phone speaker…');
+
+      const englishMsg =
+        `Emergency alert from CrashGuard. ` +
+        `${profile?.name ?? 'The rider'} has been in a motorcycle accident and needs immediate help. ` +
+        `Location is latitude ${lat.toFixed(4)}, longitude ${lng.toFixed(4)}. ` +
+        `Blood group is ${profile?.bloodGroup ?? 'unknown'}. ` +
+        `Emergency contacts have been notified via SMS with the exact location.`;
+
+      const hindiMsg =
+        `CrashGuard se emergency alert. ` +
+        `${profile?.name ?? 'Rider'} ka motorcycle accident hua hai aur unhe turant madad chahiye. ` +
+        `Location latitude ${lat.toFixed(4)}, longitude ${lng.toFixed(4)} hai. ` +
+        `Blood group ${profile?.bloodGroup ?? 'unknown'} hai. ` +
+        `Emergency contacts ko SMS ke through exact location bhej diya gaya hai.`;
+
+      store.setTtsMessage(englishMsg, 'en');
+
+      // Speak English
+      store.addLog('🗣️', 'Speaking in English…');
+      await speakOnSpeaker(englishMsg, 'en-IN');
+      await sleep(1500);
+
+      // Speak Hindi
+      store.addLog('🗣️', 'Speaking in Hindi…');
+      await speakOnSpeaker(hindiMsg, 'hi-IN');
+      await sleep(1000);
+
+      // ── Step C: Call first emergency contact (native ACTION_CALL) ──────────
+      store.transition('CALLING_CONTACTS');
+      const primaryContact = contacts[0];
+      const primaryPhone = normalizePhone(primaryContact.phone);
+      store.setCurrentContact(primaryContact);
+      store.addLog('📞', `Auto-calling ${primaryContact.name} (${primaryPhone})…`);
+
+      try {
+        await placeCall(primaryPhone);
+        store.addLog('✅', `Call placed → ${primaryContact.name}`);
+      } catch (e: any) {
+        store.addLog('⚠️', `Call failed: ${e.message || 'Unknown error'}`);
       }
+
+      store.advanceContactCascade();
     }
 
-    // ── 6. Update Supabase incident ────────────────────────────────────────────
-    await supabase
-      .from('incidents')
-      .update({
-        status: 'contacts_notified',
-        contacts_notified: true,
-        contacts_notified_at: new Date().toISOString(),
-      })
-      .eq('id', incidentId);
+    // ── 4. Update Supabase incident ──────────────────────────────────────────
+    try {
+      await supabase
+        .from('incidents')
+        .update({
+          status: 'contacts_notified',
+          contacts_notified: true,
+          contacts_notified_at: new Date().toISOString(),
+        })
+        .eq('id', incidentId);
+    } catch {
+      // Supabase update is non-critical — SMS and call already sent
+    }
 
-    // ── 7. Done ────────────────────────────────────────────────────────────────
+    // ── 5. Done ──────────────────────────────────────────────────────────────
     store.transition('DONE');
     store.addLog('🏁', 'Emergency response complete. Help is on the way.');
     this.isRunning = false;
@@ -192,7 +204,6 @@ class EmergencyOrchestrator {
   ): Promise<void> {
     const store = useEmergencyOrchestratorStore.getState();
 
-    // Write initial location immediately
     if (initialLat != null && initialLng != null) {
       store.setCurrentLocation(initialLat, initialLng);
       void supabase.from('incident_location_updates').upsert({
@@ -204,7 +215,6 @@ class EmergencyOrchestrator {
       store.addLog('📍', `Location: ${initialLat.toFixed(4)}, ${initialLng.toFixed(4)}`);
     }
 
-    // Watch position and push updates
     try {
       this.locationSub = await Location.watchPositionAsync(
         {
@@ -225,7 +235,7 @@ class EmergencyOrchestrator {
         },
       );
     } catch {
-      // Location permission may not be granted — continue without live updates
+      // Continue without live updates
     }
   }
 

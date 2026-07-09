@@ -287,7 +287,7 @@ export default function AlarmScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#8B0000' },
 
-  bgLayer: { ...StyleSheet.absoluteFill },
+  bgLayer: { ...StyleSheet.absoluteFillObject },
 
   progressTrack: {
     height: 5,

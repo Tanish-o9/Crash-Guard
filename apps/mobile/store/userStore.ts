@@ -148,7 +148,7 @@ export const useUserStore = create<UserStore>((set, get) => ({
         conditions: onboardingDraft.medicalConditions
           ? onboardingDraft.medicalConditions.split(',').map(s => s.trim()).filter(Boolean)
           : [],
-      });
+      }, { onConflict: 'user_id' });
       if (error) throw error;
       set({ isLoading: false });
       return true;

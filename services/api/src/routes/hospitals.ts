@@ -27,7 +27,7 @@ export default async function hospitalRoutes(app: FastifyInstance) {
     try {
       const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=10000&type=hospital&key=${apiKey}`;
       const response = await fetch(url);
-      const data = await response.json();
+      const data = await response.json() as any;
 
       return reply.send({
         results: data.results.map((r: any) => ({

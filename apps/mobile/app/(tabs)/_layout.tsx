@@ -23,16 +23,16 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: '#16161E',
-          borderTopColor: '#2A2A36',
+          backgroundColor: '#050505',
+          borderTopColor: '#111111',
           borderTopWidth: 1,
           height: 64,
           paddingBottom: 8,
           paddingTop: 6,
         },
-        tabBarActiveTintColor: '#FF3B3B',
+        tabBarActiveTintColor: '#00E5FF',
         tabBarInactiveTintColor: '#444456',
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '700', letterSpacing: 0.3 },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
         tabBarShowLabel: true,
       }}
     >
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconWrapActive: {
-    backgroundColor: 'rgba(255, 59, 59, 0.15)',
+    backgroundColor: 'rgba(0, 229, 255, 0.15)',
   },
   iconEmoji: {
     fontSize: 18,

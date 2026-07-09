@@ -4,6 +4,7 @@
  * Shows each incident with trigger type, timestamp, cancellation status,
  * and a link to the live tracking URL.
  */
+import * as React from 'react';
 import {
   View,
   Text,
@@ -13,6 +14,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   Linking,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect, useState, useCallback } from 'react';
@@ -26,8 +28,9 @@ interface IncidentRecord {
   trigger_type: string;
   lat: number;
   lng: number;
+  status: string;
   triggered_at: string;
-  cancelled: boolean | null;
+  cancelled_at: string | null;
   cancel_reason: string | null;
   called_emergency: boolean | null;
   contacts_notified: boolean | null;
@@ -214,7 +217,7 @@ function StatusPill({ active, label }: { active: boolean; label: string }) {
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F0F14' },
+  container: { flex: 1, backgroundColor: '#050505' },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row',
@@ -228,27 +231,28 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: -0.5,
+    letterSpacing: 2,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   countBadge: {
-    backgroundColor: '#FF3B3B',
+    backgroundColor: '#00E5FF',
     borderRadius: 10,
     paddingHorizontal: 8,
     paddingVertical: 2,
     minWidth: 24,
     alignItems: 'center',
   },
-  countBadgeText: { fontSize: 11, fontWeight: '800', color: '#FFFFFF' },
+  countBadgeText: { fontSize: 11, fontWeight: '800', color: '#050505' },
   errorBar: {
     marginHorizontal: 16,
     marginBottom: 8,
-    backgroundColor: '#1A0D0D',
+    backgroundColor: '#330A0A',
     borderRadius: 10,
     padding: 10,
     borderWidth: 1,
-    borderColor: '#3A1A1A',
+    borderColor: '#FF2A4D',
   },
-  errorText: { fontSize: 12, color: '#FF6B6B' },
+  errorText: { fontSize: 12, color: '#FF2A4D' },
   list: { padding: 16, gap: 12, paddingBottom: 40 },
   emptyContainer: { flex: 1 },
   emptyState: {
@@ -261,14 +265,14 @@ const styles = StyleSheet.create({
     minHeight: 400,
   },
   emptyIcon: { fontSize: 56, marginBottom: 8 },
-  emptyTitle: { fontSize: 20, fontWeight: '700', color: '#FFFFFF' },
-  emptySubtitle: { fontSize: 14, color: '#444456', textAlign: 'center', lineHeight: 21 },
+  emptyTitle: { fontSize: 20, fontWeight: '900', color: '#FFFFFF', letterSpacing: 1 },
+  emptySubtitle: { fontSize: 14, color: '#888888', textAlign: 'center', lineHeight: 21 },
   card: {
-    backgroundColor: '#16161E',
+    backgroundColor: '#111111',
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#2A2A36',
-    padding: 14,
+    borderColor: '#222222',
+    padding: 16,
     gap: 8,
   },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
@@ -281,37 +285,37 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     gap: 4,
   },
-  triggerLabel: { fontSize: 11, fontWeight: '700' },
+  triggerLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
   outcomeBadge: {
     borderRadius: 8,
     borderWidth: 1,
     paddingHorizontal: 8,
     paddingVertical: 3,
   },
-  outcomeText: { fontSize: 10, fontWeight: '700' },
-  dateText: { fontSize: 12, color: '#AAAABC', fontWeight: '500', fontVariant: ['tabular-nums'] },
-  coordsText: { fontSize: 11, color: '#444456' },
+  outcomeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
+  dateText: { fontSize: 12, color: '#888888', fontWeight: '600', fontVariant: ['tabular-nums'], letterSpacing: 0.5 },
+  coordsText: { fontSize: 11, color: '#666666', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
   pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
   pill: {
     borderRadius: 6,
-    backgroundColor: '#1E1E2A',
+    backgroundColor: '#050505',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderWidth: 1,
-    borderColor: '#2A2A36',
+    borderColor: '#222222',
   },
-  pillActive: { backgroundColor: '#0D1A0D', borderColor: '#2ECC7133' },
-  pillText: { fontSize: 10, color: '#444456', fontWeight: '600' },
-  pillTextActive: { color: '#2ECC71' },
+  pillActive: { backgroundColor: '#002A2A', borderColor: '#00E5FF44' },
+  pillText: { fontSize: 10, color: '#666666', fontWeight: '700' },
+  pillTextActive: { color: '#00E5FF' },
   trackBtn: {
     marginTop: 4,
-    backgroundColor: '#1E1E2A',
+    backgroundColor: '#050505',
     borderRadius: 8,
     paddingVertical: 8,
     paddingHorizontal: 12,
     alignSelf: 'flex-start',
     borderWidth: 1,
-    borderColor: '#2A2A36',
+    borderColor: '#222222',
   },
-  trackBtnText: { fontSize: 11, color: '#4285F4', fontWeight: '600' },
+  trackBtnText: { fontSize: 11, color: '#00E5FF', fontWeight: '700', letterSpacing: 0.5 },
 });

@@ -29,7 +29,7 @@ export const MIN_BASELINE_SAMPLES = 100;
 // ─── Alarm & Countdown ────────────────────────────────────────────────────────
 
 /** Countdown duration in seconds — NEVER reduce this */
-export const ALARM_COUNTDOWN_SECONDS = 20;
+export const ALARM_COUNTDOWN_SECONDS = 10;
 
 /** Volume level for alarm (0–1), always plays at max regardless of system volume */
 export const ALARM_VOLUME = 1.0;

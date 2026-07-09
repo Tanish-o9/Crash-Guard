@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   Dimensions,
   ImageBackground,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,7 +27,7 @@ export default function WelcomeScreen() {
     <View style={styles.container}>
       {/* Gradient background */}
       <LinearGradient
-        colors={['#1A0A0A', '#0F0F14', '#0F0F14']}
+        colors={['#002A2A', '#050505', '#050505']}
         style={StyleSheet.absoluteFill}
       />
 
@@ -78,7 +79,7 @@ export default function WelcomeScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F0F14' },
+  container: { flex: 1, backgroundColor: '#050505' },
   inner: { flex: 1, paddingHorizontal: 28 },
   glowTop: {
     position: 'absolute',
@@ -88,21 +89,21 @@ const styles = StyleSheet.create({
     width: 300,
     height: 300,
     borderRadius: 150,
-    backgroundColor: '#FF3B3B',
-    opacity: 0.12,
+    backgroundColor: '#00E5FF',
+    opacity: 0.1,
   },
   hero: { alignItems: 'center', paddingTop: 60, paddingBottom: 40 },
   logoWrap: {
     width: 100,
     height: 100,
     borderRadius: 28,
-    backgroundColor: '#1E0D0D',
+    backgroundColor: '#001A1A',
     borderWidth: 1.5,
-    borderColor: '#FF3B3B44',
+    borderColor: '#00E5FF44',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 20,
-    shadowColor: '#FF3B3B',
+    shadowColor: '#00E5FF',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 24,
@@ -113,14 +114,17 @@ const styles = StyleSheet.create({
     fontSize: 38,
     fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: -1.5,
+    letterSpacing: 2,
     marginBottom: 12,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   tagline: {
-    fontSize: 16,
-    color: '#888899',
+    fontSize: 14,
+    color: '#888888',
     textAlign: 'center',
     lineHeight: 24,
+    letterSpacing: 0.5,
+    fontWeight: '600',
   },
   features: {
     flex: 1,
@@ -130,41 +134,44 @@ const styles = StyleSheet.create({
   featureRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#16161E',
+    backgroundColor: '#111111',
     borderRadius: 14,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#2A2A36',
+    borderColor: '#222222',
     gap: 14,
   },
   featureIconWrap: {
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: '#1E0D0D',
+    backgroundColor: '#050505',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#222222',
   },
   featureIcon: { fontSize: 22 },
-  featureText: { flex: 1, fontSize: 14, color: '#C8C8D4', fontWeight: '500', lineHeight: 20 },
+  featureText: { flex: 1, fontSize: 13, color: '#FFFFFF', fontWeight: '700', lineHeight: 20, letterSpacing: 0.5 },
   cta: { paddingBottom: 32 },
   primaryBtn: {
-    backgroundColor: '#FF3B3B',
+    backgroundColor: '#00E5FF',
     borderRadius: 16,
     paddingVertical: 18,
     alignItems: 'center',
     marginBottom: 20,
-    shadowColor: '#FF3B3B',
+    shadowColor: '#00E5FF',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
+    shadowOpacity: 0.3,
     shadowRadius: 16,
     elevation: 10,
   },
-  primaryBtnText: { fontSize: 17, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.3 },
+  primaryBtnText: { fontSize: 17, fontWeight: '900', color: '#050505', letterSpacing: 1 },
   disclaimer: {
-    fontSize: 12,
-    color: '#444456',
+    fontSize: 11,
+    color: '#444444',
     textAlign: 'center',
     lineHeight: 18,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
 });

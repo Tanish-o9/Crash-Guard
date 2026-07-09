@@ -7,6 +7,7 @@ import {
   Platform,
   Linking,
   ScrollView,
+  PermissionsAndroid,
 } from 'react-native';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
@@ -53,8 +54,26 @@ export default function PermissionsScreen() {
       icon: '🎙️',
       title: 'Microphone',
       description:
-        'Used to listen for voice cancel commands ("cancel", "I\'m fine") during the 20-second alarm countdown — in case your phone is out of reach.',
+        'Used to listen for voice cancel commands ("cancel", "I\'m fine") during the 10-second alarm countdown — in case your phone is out of reach.',
       critical: false,
+      status: 'undetermined',
+    },
+    {
+      id: 'sms',
+      icon: '✉️',
+      title: 'Send SMS',
+      description:
+        'Allows CrashGuard to automatically send an emergency SMS with your GPS location to your emergency contacts — without any user interaction.',
+      critical: true,
+      status: 'undetermined',
+    },
+    {
+      id: 'phone',
+      icon: '📞',
+      title: 'Phone Calls',
+      description:
+        'Allows CrashGuard to automatically call your emergency contacts when a crash is detected — without needing to tap anything.',
+      critical: true,
       status: 'undetermined',
     },
   ]);
@@ -71,6 +90,14 @@ export default function PermissionsScreen() {
       Audio.getPermissionsAsync(),
     ]);
 
+    // Check Android-specific dangerous permissions
+    let smsGranted = false;
+    let phoneGranted = false;
+    if (Platform.OS === 'android') {
+      smsGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.SEND_SMS);
+      phoneGranted = await PermissionsAndroid.check(PermissionsAndroid.PERMISSIONS.CALL_PHONE);
+    }
+
     setPermissions(prev =>
       prev.map(p => {
         if (p.id === 'location')
@@ -79,6 +106,10 @@ export default function PermissionsScreen() {
           return { ...p, status: notifStatus.granted ? 'granted' : notifStatus.canAskAgain ? 'undetermined' : 'denied' };
         if (p.id === 'microphone')
           return { ...p, status: audioStatus.granted ? 'granted' : audioStatus.canAskAgain ? 'undetermined' : 'denied' };
+        if (p.id === 'sms')
+          return { ...p, status: smsGranted ? 'granted' : 'undetermined' };
+        if (p.id === 'phone')
+          return { ...p, status: phoneGranted ? 'granted' : 'undetermined' };
         return p;
       })
     );
@@ -108,6 +139,28 @@ export default function PermissionsScreen() {
     } else if (id === 'microphone') {
       const res = await Audio.requestPermissionsAsync();
       granted = res.granted;
+    } else if (id === 'sms' && Platform.OS === 'android') {
+      const result = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.SEND_SMS,
+        {
+          title: 'SMS Permission',
+          message: 'CrashGuard needs to send emergency SMS with your location to your emergency contacts when a crash is detected.',
+          buttonPositive: 'Allow',
+          buttonNegative: 'Deny',
+        }
+      );
+      granted = result === PermissionsAndroid.RESULTS.GRANTED;
+    } else if (id === 'phone' && Platform.OS === 'android') {
+      const result = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.CALL_PHONE,
+        {
+          title: 'Phone Call Permission',
+          message: 'CrashGuard needs to automatically call your emergency contacts when a crash is detected.',
+          buttonPositive: 'Allow',
+          buttonNegative: 'Deny',
+        }
+      );
+      granted = result === PermissionsAndroid.RESULTS.GRANTED;
     }
 
     setPermissions(prev =>

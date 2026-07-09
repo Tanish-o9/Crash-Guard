@@ -97,7 +97,8 @@ export const useEmergencyOrchestratorStore = create<EmergencyOrchestratorState>(
   },
 
   setIncidentId: (incidentId) => {
-    const trackingLink = `https://crashguard.app/track/${incidentId}`;
+    const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://192.168.0.138:3000';
+    const trackingLink = `${apiUrl}/incidents/${incidentId}/track`;
     set({ incidentId, trackingLink });
   },
 
