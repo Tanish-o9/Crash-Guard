@@ -16,6 +16,10 @@ import { useSensorPipeline } from '@/hooks/useSensorPipeline';
 import { useSensorStore } from '@/store/sensorStore';
 import { useUserStore } from '@/store/userStore';
 import { useCrashDetection } from '@/hooks/useCrashDetection';
+import { MAX_BUFFERED_WINDOWS } from '@crashguard/constants';
+
+const GRAVITY = 9.81; // m/s² — accel readings are stored in m/s², convert to G for display
+const magnitude = (x: number, y: number, z: number) => Math.sqrt(x * x + y * y + z * z);
 
 // Premium Color Palette
 const COLORS = {
@@ -32,10 +36,14 @@ const COLORS = {
 export default function HomeScreen() {
   const router = useRouter();
   const { isRiding, isMonitoring, status, toggleRidingMode } = useSensorPipeline();
-  const { currentSpeedKmh, latestFeatures, totalWindowsCollected, windowBuffer, lastError } =
-    useSensorStore();
+  const { currentSpeedKmh, latestReading, windowBuffer, lastError } = useSensorStore();
   const { profile } = useUserStore();
   const { detectionPhase, isDetectionEnabled, isAnomalyStage1, isStage2Classifying, isCrashConfirmed } = useCrashDetection();
+
+  // Live instantaneous telemetry — updates ~5 Hz while sensors are running.
+  const live = isRiding || isMonitoring ? latestReading : null;
+  const gForce = live ? magnitude(live.ax, live.ay, live.az) / GRAVITY : null;
+  const gyroMag = live ? magnitude(live.gx, live.gy, live.gz) : null;
 
   // Premium glow animation for active state
   const pulseAnim = useRef(new Animated.Value(0)).current;
@@ -151,15 +159,15 @@ export default function HomeScreen() {
             <View style={styles.telemetryRow}>
               <View>
                 <Text style={styles.telemetrySub}>G-FORCE</Text>
-                <Text style={styles.telemetryData}>{latestFeatures ? `${latestFeatures.peakAccelMagnitude}G` : '--'}</Text>
+                <Text style={styles.telemetryData}>{gForce != null ? `${gForce.toFixed(2)}G` : '--'}</Text>
               </View>
               <View>
                 <Text style={styles.telemetrySub}>GYRO (RAD/S)</Text>
-                <Text style={styles.telemetryData}>{latestFeatures ? latestFeatures.rotationRateSpike.toFixed(2) : '--'}</Text>
+                <Text style={styles.telemetryData}>{gyroMag != null ? gyroMag.toFixed(2) : '--'}</Text>
               </View>
               <View>
                 <Text style={styles.telemetrySub}>BUFFER</Text>
-                <Text style={styles.telemetryData}>{windowBuffer.length}/40</Text>
+                <Text style={styles.telemetryData}>{windowBuffer.length}/{MAX_BUFFERED_WINDOWS}</Text>
               </View>
             </View>
           </View>
