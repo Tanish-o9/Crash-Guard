@@ -5,11 +5,10 @@ import {
   TouchableOpacity,
   TextInput,
   ActivityIndicator,
-  Animated,
   Linking,
   ScrollView,
 } from 'react-native';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -18,14 +17,7 @@ import { useSamaritanStore } from '@/store/samaritanStore';
 import { analyzeIncidentDescription } from '@/services/geminiService';
 import { agentService } from '@/services/agentService';
 import { emergencyService } from '@/services/emergencyService';
-import { placeCall, setSpeakerphone } from '@/modules/native-call';
-import { speakInCall } from '@/modules/native-tts';
-import { languageChainForLocation, ttsLocale } from '@/services/languageService';
-import {
-  EMERGENCY_MOCK_NUMBER,
-  DEMO_VERIFIED_NUMBER,
-  USE_REAL_DESTINATION_NUMBERS,
-} from '@crashguard/constants';
+import { DEMO_VERIFIED_NUMBER, USE_REAL_DESTINATION_NUMBERS } from '@crashguard/constants';
 
 export default function SamaritanScreen() {
   const router = useRouter();
@@ -81,7 +73,11 @@ export default function SamaritanScreen() {
     }
   }, [step]);
 
-  // Analyzing effect (Bedrock agent, with Gemini/mock fallback)
+  // Analyzing effect (Bedrock agent, with Gemini/mock fallback). After analysis we
+  // log the samaritan report and go STRAIGHT to hospitals (if the samaritan can
+  // transport) or finish. There is NO mock "confirm" screen, and NO emergency call
+  // is placed from the samaritan's own phone — dialing emergency from the SIM is the
+  // personal auto-crash workflow, not the samaritan workflow.
   useEffect(() => {
     if (step === 'analyzing') {
       (async () => {
@@ -89,78 +85,20 @@ export default function SamaritanScreen() {
           (await agentService.analyzeIncident(description)) ??
           (await analyzeIncidentDescription(description));
         setNlpResult(result);
-        next(); // -> confirm
-      })();
-    }
-  }, [step]);
 
-  const handleConfirm = () => next(); // -> calling
-
-  // Calling effect — AI-composed dispatcher script + acoustic-bridge call
-  useEffect(() => {
-    if (step === 'calling') {
-      (async () => {
-        // 1. Resolve spoken-language chain for this location (local → hi → en).
-        let languages: string[] = ['hi', 'en'];
-        try {
-          if (lat && lng) languages = (await languageChainForLocation(lat, lng)).chain;
-        } catch {
-          // keep default
-        }
-
-        // 2. Compose the bystander dispatcher script (AI, with offline fallback).
-        let segments = await agentService.getDispatcherScript({
-          languages,
-          lat,
-          lng,
-          severity: nlpResult?.severity ?? null,
-          victims: nlpResult?.estimatedVictims ?? 1,
-          summary: nlpResult?.summary ?? description,
-          isSamaritan: true,
-        });
-        if (!segments || segments.length === 0) {
-          segments = [
-            {
-              lang: 'en',
-              text:
-                `Hello. I am a bystander reporting an accident. ` +
-                `${nlpResult?.summary ?? 'A rider has crashed.'} ` +
-                `Location coordinates are ${lat?.toFixed(4)}, ${lng?.toFixed(4)}. ` +
-                `Estimated severity is ${nlpResult?.severity ?? 'unknown'}. Please send an ambulance.`,
-            },
-          ];
-        }
-
-        // 3. Place the call (mock number until legal clearance), enable speakerphone,
-        //    and speak each segment so the dispatcher hears it via the acoustic bridge.
-        try {
-          await placeCall(EMERGENCY_MOCK_NUMBER);
-        } catch {
-          Linking.openURL(`tel:${EMERGENCY_MOCK_NUMBER}`).catch(() => {});
-        }
-        await new Promise((r) => setTimeout(r, 6000));
-        await setSpeakerphone(true);
-        // Speak twice: we can't detect when the dispatcher actually answers.
-        for (let pass = 0; pass < 2; pass++) {
-          for (const seg of segments) {
-            await speakInCall(seg.text, ttsLocale(seg.lang));
-          }
-        }
-        await setSpeakerphone(false);
-
-        // 4. Log the samaritan report, then advance.
         if (lat && lng) {
           const id = await emergencyService.submitSamaritanReport({
             lat,
             lng,
             nlpIntake: description,
-            severityEstimate: nlpResult?.severity,
+            severityEstimate: result?.severity,
             canTransport,
             hospitalChosen: undefined,
           });
           if (id) console.log('Samaritan report logged:', id);
         }
-        next(); // -> hospital or done
+
+        goTo(canTransport ? 'hospital' : 'done');
       })();
     }
   }, [step]);
@@ -295,33 +233,6 @@ export default function SamaritanScreen() {
     </View>
   );
 
-  const renderConfirm = () => (
-    <View style={styles.content}>
-      <Text style={styles.title}>Ready to dispatch</Text>
-      
-      <View style={styles.summaryCard}>
-        <Text style={styles.summaryLabel}>Location</Text>
-        <Text style={styles.summaryValue}>{lat?.toFixed(5)}, {lng?.toFixed(5)}</Text>
-        
-        <Text style={[styles.summaryLabel, { marginTop: 16 }]}>Extracted Info (Gemini)</Text>
-        <Text style={styles.summaryValue}>Severity: {nlpResult?.severity?.toUpperCase()}</Text>
-        <Text style={styles.summaryValue}>Summary: {nlpResult?.summary}</Text>
-      </View>
-
-      <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: '#FF3B3B' }]} onPress={handleConfirm}>
-        <Text style={styles.primaryBtnText}>🚨 Call Emergency (Mock)</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  const renderCalling = () => (
-    <View style={styles.contentCentered}>
-      <Animated.Text style={[styles.emoji, { opacity: 1 }]}>📞</Animated.Text>
-      <Text style={styles.title}>Calling 112...</Text>
-      <Text style={styles.subtitle}>Speaking automated emergency message</Text>
-    </View>
-  );
-
   const renderHospital = () => (
     <View style={styles.content}>
       <Text style={styles.title}>Nearby Hospitals</Text>
@@ -383,8 +294,6 @@ export default function SamaritanScreen() {
         {step === 'describe' && renderDescribe()}
         {step === 'locating' && renderLocating()}
         {step === 'analyzing' && renderAnalyzing()}
-        {step === 'confirm' && renderConfirm()}
-        {step === 'calling' && renderCalling()}
         {step === 'hospital' && renderHospital()}
         {step === 'done' && renderDone()}
       </ScrollView>

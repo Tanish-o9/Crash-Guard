@@ -92,7 +92,7 @@ export const agentService = {
       estimated_victims: number;
       vehicle_types: string[];
       summary: string;
-    }>('/agent/samaritan-intake/', { description });
+    }>('/agent/samaritan-intake/', { description }, 12000);
     if (!data) return null;
     return {
       severity: data.severity,

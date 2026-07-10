@@ -33,13 +33,14 @@ export type SamaritanStep =
   | 'hospital'
   | 'done';
 
+// NOTE: 'confirm' and 'calling' are intentionally NOT in the flow. The samaritan
+// workflow goes analyzing → hospital (if canTransport) → done. No mock confirm
+// screen, and no emergency call is placed from the samaritan's own phone.
 const STEP_ORDER: SamaritanStep[] = [
   'landing',
   'describe',
   'locating',
   'analyzing',
-  'confirm',
-  'calling',
   'hospital',
   'done',
 ];
