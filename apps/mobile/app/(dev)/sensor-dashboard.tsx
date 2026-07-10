@@ -211,7 +211,7 @@ function Row({
   highlight?: boolean;
   error?: boolean;
 }) {
-  const valueColor = error ? '#FF6B6B' : highlight ? '#FF3B3B' : '#FFFFFF';
+  const valueColor = error ? C.coral : highlight ? C.sage : C.ink;
   return (
     <View style={styles.row}>
       <Text style={styles.rowLabel}>{label}</Text>
@@ -224,6 +224,13 @@ function Row({
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
+const C = {
+  bgCard: '#FFFFFF', sage: '#4A7060', sagePale: '#C4D8CC', sageTint: '#EBF3EF',
+  ink: '#1C2826', inkMid: '#445550', inkFaint: '#8A9E96',
+  line: '#DDD6C8', lineLight: '#EAE4D8',
+  coral: '#C8503C',
+};
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F0E8' },
   topBar: {
@@ -233,63 +240,56 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 8,
   },
-  pageTitle: { fontSize: 22, fontWeight: '900', color: '#FFFFFF', letterSpacing: -0.5 },
-  pageSubtitle: { fontSize: 11, color: '#FF8C3B', fontWeight: '600', marginTop: 2 },
+  pageTitle: { fontSize: 22, fontWeight: '900', color: C.ink, letterSpacing: -0.5 },
+  pageSubtitle: { fontSize: 11, color: C.sage, fontWeight: '800', marginTop: 2, letterSpacing: 0.5 },
   ridingToggle: {
-    backgroundColor: '#16161E',
+    backgroundColor: C.bgCard,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderWidth: 1.5,
-    borderColor: '#2A2A36',
+    borderColor: C.line,
   },
-  ridingToggleActive: { backgroundColor: '#1A0D0D', borderColor: '#FF3B3B' },
-  ridingToggleText: { fontSize: 13, fontWeight: '700', color: '#FFFFFF' },
+  ridingToggleActive: { backgroundColor: C.sageTint, borderColor: C.sage },
+  ridingToggleText: { fontSize: 13, fontWeight: '700', color: C.ink },
   section: { paddingHorizontal: 20, marginBottom: 16 },
   sectionTitle: {
     fontSize: 11,
-    fontWeight: '700',
-    color: '#444456',
-    letterSpacing: 1,
+    fontWeight: '800',
+    color: C.inkFaint,
+    letterSpacing: 1.5,
     marginBottom: 8,
     textTransform: 'uppercase',
   },
   sectionCard: {
-    backgroundColor: '#16161E',
+    backgroundColor: C.bgCard,
     borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#2A2A36',
-    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: C.line,
+    padding: 16,
+    gap: 12,
   },
-  row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1E1E2A',
-  },
-  rowLabel: { fontSize: 12, color: '#666680', flex: 1 },
-  rowValue: { fontSize: 12, fontWeight: '700', fontVariant: ['tabular-nums'], maxWidth: 200, textAlign: 'right' },
-  emptyText: { fontSize: 12, color: '#444456', padding: 14, textAlign: 'center' },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  rowLabel: { fontSize: 14, fontWeight: '600', color: C.inkMid },
+  rowValue: { fontSize: 14, fontWeight: '800', fontFamily: 'monospace' },
+  emptyState: { padding: 40, alignItems: 'center' },
+  emptyText: { color: C.inkFaint, fontWeight: '600' },
   uploadBtn: {
-    margin: 12,
-    backgroundColor: '#1E1E2A',
+    marginTop: 12,
+    backgroundColor: C.sageTint,
     borderRadius: 10,
     padding: 12,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#3A3A4A',
+    borderColor: C.sagePale,
   },
   uploadBtnDisabled: { opacity: 0.5 },
-  uploadBtnText: { fontSize: 13, fontWeight: '700', color: '#FF3B3B' },
+  uploadBtnText: { fontSize: 13, fontWeight: '700', color: C.sage },
   windowRow: {
-    paddingHorizontal: 14,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#1E1E2A',
+    borderBottomColor: C.lineLight,
   },
-  windowTime: { fontSize: 11, color: '#666680', marginBottom: 2 },
-  windowFeature: { fontSize: 11, color: '#888899', fontVariant: ['tabular-nums'] },
+  windowTime: { fontSize: 11, color: C.inkFaint, marginBottom: 2 },
+  windowFeature: { fontSize: 11, color: C.inkMid, fontVariant: ['tabular-nums'] },
 });

@@ -76,41 +76,32 @@ export default function MedicalInfoScreen() {
   );
 }
 
+const C = {
+  bgCard: '#FFFFFF', sage: '#4A7060', sagePale: '#C4D8CC', sageTint: '#EBF3EF',
+  ink: '#1C2826', inkMid: '#445550', inkFaint: '#8A9E96',
+  line: '#DDD6C8', lineLight: '#EAE4D8',
+};
+
 const styles = StyleSheet.create({
   label: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#666680',
-    letterSpacing: 0.5,
-    marginBottom: 10,
-    textTransform: 'uppercase',
+    fontSize: 11, fontWeight: '800', color: C.inkFaint,
+    letterSpacing: 2, marginBottom: 10, textTransform: 'uppercase',
   },
   input: {
-    backgroundColor: '#16161E',
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#2A2A36',
-    padding: 16,
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#FFFFFF',
-    marginBottom: 6,
+    backgroundColor: C.bgCard,
+    borderRadius: 14, borderWidth: 1.5, borderColor: C.line,
+    padding: 16, fontSize: 15, fontWeight: '500', color: C.ink, marginBottom: 6,
   },
   multiline: { height: 90, textAlignVertical: 'top' },
-  hint: { fontSize: 12, color: '#444456', marginBottom: 24, marginLeft: 2 },
+  hint: { fontSize: 12, color: C.inkFaint, marginBottom: 24, marginLeft: 2 },
   privacyCard: {
-    flexDirection: 'row',
-    gap: 12,
-    backgroundColor: '#16161E',
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#2A2A36',
-    alignItems: 'flex-start',
-    marginBottom: 20,
+    flexDirection: 'row', gap: 12, backgroundColor: C.sageTint,
+    borderRadius: 16, padding: 16, borderWidth: 1, borderColor: C.sagePale,
+    alignItems: 'flex-start', marginBottom: 20,
   },
   privacyIcon: { fontSize: 18 },
-  privacyText: { flex: 1, fontSize: 12, color: '#555566', lineHeight: 18 },
-  skipBtn: { alignItems: 'center', paddingVertical: 8 },
-  skipText: { fontSize: 14, color: '#444456', fontWeight: '600' },
+  privacyText: { flex: 1, fontSize: 12, color: C.inkMid, lineHeight: 18 },
+  skipBtn: { alignItems: 'center', paddingVertical: 10 },
+  skipText: { fontSize: 14, color: C.inkFaint, fontWeight: '600' },
 });
+

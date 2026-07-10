@@ -120,61 +120,50 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function Row({
   label,
   value,
-  highlight = false,
-  error = false,
+  valueColor = C.ink,
 }: {
   label: string;
-  value: string;
-  highlight?: boolean;
-  error?: boolean;
+  value: string | number;
+  valueColor?: string;
 }) {
-  const valueColor = error ? '#FF6B6B' : highlight ? '#2ECC71' : '#FFFFFF';
   return (
     <View style={styles.row}>
-      <Text style={styles.rowLabel}>{label}</Text>
-      <Text style={[styles.rowValue, { color: valueColor }]} numberOfLines={1}>
+      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.value, { color: valueColor }]} numberOfLines={1}>
         {value}
       </Text>
     </View>
   );
 }
 
+const C = {
+  bgCard: '#FFFFFF', sage: '#4A7060', sagePale: '#C4D8CC', sageTint: '#EBF3EF',
+  ink: '#1C2826', inkMid: '#445550', inkFaint: '#8A9E96',
+  line: '#DDD6C8', lineLight: '#EAE4D8',
+};
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F0E8' },
   header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
-  title: { fontSize: 22, fontWeight: '900', color: '#FFFFFF', letterSpacing: -0.5 },
-  subtitle: { fontSize: 11, color: '#FF8C3B', fontWeight: '600', marginTop: 2 },
+  title: { fontSize: 22, fontWeight: '900', color: C.ink, letterSpacing: -0.5 },
+  subtitle: { fontSize: 11, color: C.sage, fontWeight: '800', marginTop: 2, letterSpacing: 0.5 },
   section: { paddingHorizontal: 20, marginBottom: 16 },
   sectionTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#444456',
-    letterSpacing: 1,
-    marginBottom: 8,
-    textTransform: 'uppercase',
+    fontSize: 11, fontWeight: '800', color: C.inkFaint,
+    letterSpacing: 1.5, marginBottom: 8, textTransform: 'uppercase',
   },
   sectionCard: {
-    backgroundColor: '#16161E',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#2A2A36',
-    overflow: 'hidden',
+    backgroundColor: C.bgCard, borderRadius: 14, borderWidth: 1.5,
+    borderColor: C.line, overflow: 'hidden',
+    shadowColor: '#00000008', shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6, elevation: 1,
   },
   row: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#1E1E2A',
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: C.lineLight,
   },
-  rowLabel: { fontSize: 12, color: '#666680', flex: 1 },
-  rowValue: {
-    fontSize: 12,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
-    maxWidth: 180,
-    textAlign: 'right',
-  },
+  label: { fontSize: 13, fontWeight: '700', color: C.inkMid },
+  value: { fontSize: 13, fontWeight: '800', color: C.ink, fontFamily: 'monospace' },
+  emptyState: { padding: 40, alignItems: 'center' },
+  emptyText: { color: C.inkFaint, fontWeight: '600' },
 });

@@ -211,9 +211,9 @@ export default function CrashSimulatorScreen() {
 
         {/* Result log */}
         {result && (
-          <View style={styles.resultCard}>
-            <Text style={styles.resultTitle}>Simulation Output</Text>
-            <Text style={styles.resultText}>{result}</Text>
+          <View style={[styles.resultCard, result.includes('🚨') && styles.resultError]}>
+            <Text style={[styles.resultTitle, result.includes('🚨') && styles.resultErrorText]}>Simulation Output</Text>
+            <Text style={[styles.resultText, result.includes('🚨') && styles.resultErrorText]}>{result}</Text>
           </View>
         )}
       </ScrollView>
@@ -230,97 +230,66 @@ function FeatureChip({ label, value }: { label: string; value: string }) {
   );
 }
 
+const C = {
+  bgCard: '#FFFFFF', sage: '#4A7060', sagePale: '#C4D8CC', sageTint: '#EBF3EF',
+  ink: '#1C2826', inkMid: '#445550', inkFaint: '#8A9E96',
+  line: '#DDD6C8', lineLight: '#EAE4D8', coral: '#C8503C', coralTint: '#FAE8E5',
+};
+
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F0E8' },
-  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
-  title: { fontSize: 22, fontWeight: '900', color: '#FFFFFF', letterSpacing: -0.5 },
-  subtitle: { fontSize: 11, color: '#FF8C3B', fontWeight: '600', marginTop: 2 },
+  header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 8 },
+  title: { fontSize: 22, fontWeight: '900', color: C.ink, letterSpacing: -0.5 },
+  subtitle: { fontSize: 11, color: C.sage, fontWeight: '800', marginTop: 2, letterSpacing: 0.5 },
   warningCard: {
-    marginHorizontal: 16,
-    marginBottom: 20,
-    backgroundColor: '#1A150A',
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#F39C1244',
-    padding: 12,
+    marginHorizontal: 16, marginBottom: 20, backgroundColor: '#1A150A',
+    borderRadius: 12, borderWidth: 1, borderColor: '#F39C1244', padding: 12,
   },
   warningText: { fontSize: 12, color: '#F39C12', lineHeight: 18 },
-  sectionLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#444456',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    marginHorizontal: 20,
-    marginBottom: 10,
+  sectionTitle: {
+    fontSize: 11, fontWeight: '800', color: C.inkFaint, letterSpacing: 1.5,
+    textTransform: 'uppercase', marginHorizontal: 20, marginBottom: 10,
   },
   presetsGrid: { paddingHorizontal: 16, gap: 10, marginBottom: 20 },
   presetCard: {
-    backgroundColor: '#16161E',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#2A2A36',
-    padding: 14,
-    gap: 6,
+    backgroundColor: C.bgCard, borderRadius: 18, borderWidth: 1.5,
+    borderColor: C.line, padding: 16, gap: 8,
+    shadowColor: '#00000008', shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 6, elevation: 1,
   },
-  presetCardActive: { borderColor: '#FF3B3B66', backgroundColor: '#1A0D0D' },
+  presetCardActive: { borderColor: C.sage, backgroundColor: C.sageTint },
   presetEmoji: { fontSize: 24 },
-  presetLabel: { fontSize: 14, fontWeight: '700', color: '#888899' },
-  presetLabelActive: { color: '#FFFFFF' },
+  presetLabel: { fontSize: 14, fontWeight: '800', color: C.inkMid },
+  presetLabelActive: { color: C.ink },
   presetFeatures: { flexDirection: 'row', gap: 6, flexWrap: 'wrap' },
-  chip: { backgroundColor: '#1E1E2A', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3 },
-  chipLabel: { fontSize: 8, color: '#444456', textTransform: 'uppercase' },
-  chipValue: { fontSize: 11, color: '#AAAABC', fontWeight: '700' },
+  chip: { backgroundColor: C.lineLight, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
+  chipLabel: { fontSize: 9, color: C.inkMid, textTransform: 'uppercase', fontWeight: '800' },
+  chipValue: { fontSize: 11, color: C.ink, fontWeight: '800', fontFamily: 'monospace' },
   toggleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginHorizontal: 16,
-    marginBottom: 20,
-    backgroundColor: '#16161E',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#2A2A36',
-    padding: 14,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    marginHorizontal: 16, marginBottom: 20, backgroundColor: C.bgCard, borderRadius: 18,
+    borderWidth: 1.5, borderColor: C.line, padding: 16,
   },
-  toggleLabel: { fontSize: 14, fontWeight: '600', color: '#FFFFFF' },
-  toggleSub: { fontSize: 11, color: '#444456', marginTop: 2 },
+  toggleLabel: { fontSize: 14, fontWeight: '800', color: C.ink },
+  toggleSub: { fontSize: 12, color: C.inkFaint, marginTop: 2 },
   runBtn: {
-    marginHorizontal: 16,
-    marginBottom: 10,
-    backgroundColor: '#FF3B3B',
-    borderRadius: 14,
-    paddingVertical: 16,
-    alignItems: 'center',
-    shadowColor: '#FF3B3B',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.4,
-    shadowRadius: 12,
-    elevation: 8,
+    marginHorizontal: 16, marginBottom: 10, backgroundColor: C.coral, borderRadius: 18,
+    paddingVertical: 18, alignItems: 'center', shadowColor: C.coral,
+    shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8,
   },
   runBtnDisabled: { opacity: 0.5 },
   runBtnText: { fontSize: 16, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.5 },
   resetBtn: {
-    marginHorizontal: 16,
-    marginBottom: 20,
-    backgroundColor: '#16161E',
-    borderRadius: 14,
-    paddingVertical: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#2A2A36',
+    marginHorizontal: 16, marginBottom: 20, backgroundColor: C.bgCard, borderRadius: 18,
+    paddingVertical: 14, alignItems: 'center', borderWidth: 1.5, borderColor: C.line,
   },
-  resetBtnText: { fontSize: 13, fontWeight: '600', color: '#666680' },
+  resetBtnText: { fontSize: 14, fontWeight: '700', color: C.inkMid },
   resultCard: {
-    marginHorizontal: 16,
-    marginBottom: 40,
-    backgroundColor: '#0D1A0D',
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#2ECC7133',
-    padding: 14,
-    gap: 8,
+    marginHorizontal: 16, marginBottom: 40, backgroundColor: C.sageTint, borderRadius: 18,
+    borderWidth: 1.5, borderColor: C.sagePale, padding: 16,
   },
-  resultTitle: { fontSize: 12, fontWeight: '800', color: '#2ECC71', letterSpacing: 0.5 },
-  resultText: { fontSize: 12, color: '#AAAABC', lineHeight: 20, fontFamily: 'monospace' },
+  resultTitle: { fontSize: 13, fontWeight: '800', color: C.sage, marginBottom: 8, textTransform: 'uppercase' },
+  resultText: { fontSize: 12, color: C.inkMid, fontFamily: 'monospace', lineHeight: 18 },
+  resultError: { backgroundColor: C.coralTint, borderColor: C.coral + '44' },
+  resultErrorText: { color: C.coral },
 });

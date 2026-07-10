@@ -10,8 +10,8 @@ import { useCalibrationStore } from '@/store/calibrationStore';
 
 function LoadingScreen() {
   return (
-    <View style={{ flex: 1, backgroundColor: '#0F0F14', alignItems: 'center', justifyContent: 'center' }}>
-      <ActivityIndicator color="#FF3B3B" size="large" />
+    <View style={{ flex: 1, backgroundColor: '#F5F0E8', alignItems: 'center', justifyContent: 'center' }}>
+      <ActivityIndicator color="#4A7060" size="large" />
     </View>
   );
 }
@@ -40,31 +40,34 @@ export default function RootLayout() {
   useEffect(() => {
     if (isLoading) return;
     const inAuth = segments[0] === '(auth)';
+    const inSetup = inAuth && segments[1] === 'setup';
+    const inLoginFlow = inAuth && !inSetup;
+
     if (!session) {
       if (!inAuth) router.replace('/(auth)/welcome');
     } else if (!isOnboarded) {
       if (!inAuth) router.replace('/(auth)/setup/profile');
-    } else if (inAuth) {
-      // logged in + onboarded but still on an auth screen → go to the app.
+    } else if (inLoginFlow) {
+      // logged in + onboarded but on a login screen → go to the app.
       router.replace('/(tabs)');
     }
-    // logged in + onboarded on any other route (tabs, samaritan, alarm…) → leave it.
+    // If logged in + onboarded and in inSetup, let them stay (editing profile from settings).
   }, [isLoading, session, isOnboarded, segments]);
 
   return (
     <GestureHandlerRootView style={styles.container}>
       <SafeAreaProvider>
-        <StatusBar style="light" />
+        <StatusBar style="dark" />
 
         {isLoading ? (
           <LoadingScreen />
         ) : (
           <Stack
             screenOptions={{
-              headerStyle: { backgroundColor: '#0F0F14' },
-              headerTintColor: '#FFFFFF',
+              headerStyle: { backgroundColor: '#F5F0E8' },
+              headerTintColor: '#4A7060',
               headerTitleStyle: { fontWeight: '700' },
-              contentStyle: { backgroundColor: '#0F0F14' },
+              contentStyle: { backgroundColor: '#F5F0E8' },
               animation: 'slide_from_right',
             }}
           >
