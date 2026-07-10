@@ -1,4 +1,4 @@
-import { Stack, Redirect } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -20,6 +20,8 @@ export default function RootLayout() {
   const { isLoading, session, isOnboarded, initialize } = useAuthStore();
   const loadBaseline = useCalibrationStore(s => s.loadBaseline);
   const loadProfile = useUserStore(s => s.loadProfile);
+  const router = useRouter();
+  const segments = useSegments();
 
   useEffect(() => {
     initialize();
@@ -32,6 +34,22 @@ export default function RootLayout() {
       loadProfile(session.user.id);
     }
   }, [session?.user.id]);
+
+  // Auth routing guard. Only bounce users when they're in the WRONG area — never
+  // clobber an explicit deep link (e.g. the home-screen widget opening /samaritan).
+  useEffect(() => {
+    if (isLoading) return;
+    const inAuth = segments[0] === '(auth)';
+    if (!session) {
+      if (!inAuth) router.replace('/(auth)/welcome');
+    } else if (!isOnboarded) {
+      if (!inAuth) router.replace('/(auth)/setup/profile');
+    } else if (inAuth) {
+      // logged in + onboarded but still on an auth screen → go to the app.
+      router.replace('/(tabs)');
+    }
+    // logged in + onboarded on any other route (tabs, samaritan, alarm…) → leave it.
+  }, [isLoading, session, isOnboarded, segments]);
 
   return (
     <GestureHandlerRootView style={styles.container}>
@@ -93,12 +111,6 @@ export default function RootLayout() {
             />
           </Stack>
         )}
-
-        {/* ── Auth redirect logic ───────────────────────────────── */}
-        {/* (only runs when not loading, avoids flash of wrong screen) */}
-        {!isLoading && !session && <Redirect href="/(auth)/welcome" />}
-        {!isLoading && session && !isOnboarded && <Redirect href="/(auth)/setup/profile" />}
-        {!isLoading && session && isOnboarded && <Redirect href="/(tabs)" />}
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

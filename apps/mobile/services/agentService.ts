@@ -248,6 +248,30 @@ export const agentService = {
     }
   },
 
+  /** Generate an underwriter-style natural-language summary of the risk profile. */
+  async getRiskSummary(p: {
+    score: number;
+    tier: string;
+    factors: { label: string; score: number; detail?: string }[];
+    ridingMinutes: number;
+    incidents: number;
+    dataPoints: number;
+  }): Promise<string | null> {
+    const data = await postJson<{ summary: string; model_used: string }>(
+      '/agent/risk-summary/',
+      {
+        score: p.score,
+        tier: p.tier,
+        factors: p.factors.map((f) => ({ label: f.label, score: f.score, detail: f.detail ?? null })),
+        riding_minutes: p.ridingMinutes,
+        incidents: p.incidents,
+        data_points: p.dataPoints,
+      },
+      12000,
+    );
+    return data?.summary ?? null;
+  },
+
   /** Compose the spoken hospital pre-alert (one segment per language). */
   async getHospitalPrealert(p: {
     hospitalName?: string | null;

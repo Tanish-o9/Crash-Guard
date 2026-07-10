@@ -18,7 +18,7 @@ load_dotenv()  # load .env (incl. AWS_BEARER_TOKEN_BEDROCK) before boto3 clients
 from fastapi import FastAPI  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 
-from app.routers import health, dispatcher, intake, relative, hospital, call  # noqa: E402
+from app.routers import health, dispatcher, intake, relative, hospital, call, risk  # noqa: E402
 
 app = FastAPI(title="CrashGuard Agent", version="1.0.0")
 
@@ -35,6 +35,7 @@ app.include_router(intake.router, prefix="/agent/samaritan-intake", tags=["agent
 app.include_router(relative.router, prefix="/agent/relative-message", tags=["agent"])
 app.include_router(hospital.router, prefix="/hospital", tags=["hospital"])
 app.include_router(call.router, prefix="/call", tags=["call"])
+app.include_router(risk.router, prefix="/agent/risk-summary", tags=["agent"])
 
 
 @app.get("/")
