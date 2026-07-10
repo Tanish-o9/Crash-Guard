@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Linking,
   ScrollView,
+  Image,
 } from 'react-native';
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'expo-router';
@@ -18,6 +19,36 @@ import { analyzeIncidentDescription } from '@/services/geminiService';
 import { agentService } from '@/services/agentService';
 import { emergencyService } from '@/services/emergencyService';
 import { DEMO_VERIFIED_NUMBER, USE_REAL_DESTINATION_NUMBERS } from '@crashguard/constants';
+
+// Quick-select incident types. Tapping an image fills the description with a canned
+// phrase so the AI (intake + hospital pre-alert) speaks the right kind of accident —
+// no typing needed in an emergency.
+const INCIDENT_OPTIONS = [
+  {
+    key: 'bikes',
+    label: 'Two bikes collided',
+    src: require('../assets/bikes_collision.png'),
+    description: 'Two bikes have collided with each other and riders are injured.',
+  },
+  {
+    key: 'bike_car',
+    label: 'Bike hit a car',
+    src: require('../assets/bike_car_collision.png'),
+    description: 'A bike has collided with a car and people are injured.',
+  },
+  {
+    key: 'car',
+    label: 'Car accident',
+    src: require('../assets/car_accident_disaster.webp'),
+    description: 'A car has met with a serious accident and occupants are injured.',
+  },
+  {
+    key: 'mountain',
+    label: 'Car fell off road',
+    src: require('../assets/car_felloff_mountain.webp'),
+    description: 'A car has fallen off a mountain road and occupants are injured.',
+  },
+];
 
 export default function SamaritanScreen() {
   const router = useRouter();
@@ -57,6 +88,12 @@ export default function SamaritanScreen() {
   const handleStart = () => next(); // -> describe
 
   const handleDescribeSubmit = () => next(); // -> locating
+
+  // Quick-select: fill the description from the tapped incident image and continue.
+  const handlePickIncident = (desc: string) => {
+    setDescription(desc);
+    next(); // -> locating (same flow as the typed description)
+  };
 
   // Locating effect
   useEffect(() => {
@@ -201,8 +238,24 @@ export default function SamaritanScreen() {
   const renderDescribe = () => (
     <View style={styles.content}>
       <Text style={styles.title}>What do you see?</Text>
-      <Text style={styles.subtitle}>Optional: Briefly describe the situation so we can prepare responders.</Text>
-      
+      <Text style={styles.subtitle}>Tap what happened, or describe it below.</Text>
+
+      <View style={styles.incidentGrid}>
+        {INCIDENT_OPTIONS.map((opt) => (
+          <TouchableOpacity
+            key={opt.key}
+            style={styles.incidentCard}
+            activeOpacity={0.8}
+            onPress={() => handlePickIncident(opt.description)}
+          >
+            <Image source={opt.src} style={styles.incidentImg} resizeMode="cover" />
+            <Text style={styles.incidentLabel} numberOfLines={1}>{opt.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      <Text style={styles.orDivider}>or describe it</Text>
+
       <TextInput
         style={styles.input}
         placeholder="e.g., Two bikes collided, one person injured..."
@@ -407,4 +460,35 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   dispatchNoteText: { fontSize: 12, color: '#9CCB8C', lineHeight: 17 },
+  incidentGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  incidentCard: {
+    width: '48%',
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#2A2A36',
+    backgroundColor: '#16161E',
+  },
+  incidentImg: { width: '100%', height: 90 },
+  incidentLabel: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontWeight: '600',
+    textAlign: 'center',
+    paddingVertical: 8,
+  },
+  orDivider: {
+    fontSize: 12,
+    color: '#555566',
+    textAlign: 'center',
+    marginBottom: 12,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+  },
 });
