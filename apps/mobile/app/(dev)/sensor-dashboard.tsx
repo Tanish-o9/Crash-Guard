@@ -225,7 +225,7 @@ function Row({
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F0F14' },
+  container: { flex: 1, backgroundColor: '#F5F0E8' },
   topBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',

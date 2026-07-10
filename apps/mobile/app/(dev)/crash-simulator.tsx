@@ -231,7 +231,7 @@ function FeatureChip({ label, value }: { label: string; value: string }) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0F0F14' },
+  container: { flex: 1, backgroundColor: '#F5F0E8' },
   header: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12 },
   title: { fontSize: 22, fontWeight: '900', color: '#FFFFFF', letterSpacing: -0.5 },
   subtitle: { fontSize: 11, color: '#FF8C3B', fontWeight: '600', marginTop: 2 },

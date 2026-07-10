@@ -4,8 +4,8 @@
  * Renders the real-time emergency response timeline as the orchestrator
  * progresses through: emergency call → TTS speech → contact cascade → SMS → done.
  *
- * Design: dark blue background (professional, not panic-inducing at this stage
- * since emergency is already being handled).
+ * Design: warm cream / sage theme — professional, not panic-inducing at this stage
+ * since emergency is already being handled.
  */
 import {
   View,
@@ -23,17 +23,37 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Feather } from '@expo/vector-icons';
 import { useEmergencyOrchestrator } from '@/hooks/useEmergencyOrchestrator';
 import { useAlarmStore } from '@/store/alarmStore';
 
+// ─── Design tokens ─────────────────────────────────────────────────────────────
+const C = {
+  bg:        '#F5F0E8',
+  bgDeep:    '#EDE7D9',
+  bgCard:    '#FFFFFF',
+  sage:      '#4A7060',
+  sagePale:  '#C4D8CC',
+  sageTint:  '#EBF3EF',
+  teal:      '#356060',
+  coral:     '#C8503C',
+  green:     '#3A8050',
+  greenTint: '#E8F5EE',
+  ink:       '#1C2826',
+  inkMid:    '#445550',
+  inkFaint:  '#8A9E96',
+  line:      '#DDD6C8',
+  lineLight: '#EAE4D8',
+};
+
 // ─── Phase label map ─────────────────────────────────────────────────────────
 
-const STATE_LABEL: Record<string, string> = {
-  CALLING_EMERGENCY: '📞 Calling emergency services…',
-  CALLING_CONTACTS:  '📱 Contacting emergency contacts…',
-  DONE:              '✅ Help is on the way',
-  CANCELLED:         '❌ Cancelled',
-  IDLE:              'Preparing…',
+const STATE_LABEL: Record<string, { text: string; icon: string }> = {
+  CALLING_EMERGENCY: { text: 'Calling emergency services…', icon: 'phone-call' },
+  CALLING_CONTACTS:  { text: 'Contacting emergency contacts…', icon: 'users' },
+  DONE:              { text: 'Help is on the way',              icon: 'check-circle' },
+  CANCELLED:         { text: 'Cancelled',                       icon: 'x-circle' },
+  IDLE:              { text: 'Preparing response…',             icon: 'loader' },
 };
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
@@ -59,20 +79,20 @@ export default function CallingScreen() {
 
   const { reset: resetAlarm } = useAlarmStore();
 
-  // Auto-scroll the log to bottom on new entries
+  // Auto-scroll log to bottom
   const scrollRef = useRef<ScrollView>(null);
   useEffect(() => {
     scrollRef.current?.scrollToEnd({ animated: true });
   }, [statusLog.length]);
 
-  // Pulsing dot animation
+  // Pulsing dot (native driver — opacity only)
   const pulseAnim = useRef(new Animated.Value(1)).current;
   useEffect(() => {
     if (!isDone) {
       Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.4, duration: 600, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1.0, duration: 600, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 0.2, duration: 700, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1.0, duration: 700, useNativeDriver: true }),
         ])
       ).start();
     } else {
@@ -94,270 +114,211 @@ export default function CallingScreen() {
     }
   }
 
+  const phaseInfo = STATE_LABEL[machineState] ?? { text: 'Processing…', icon: 'loader' };
+
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <View style={styles.root}>
-      <StatusBar style="light" />
+    <View style={s.root}>
+      <StatusBar style="dark" />
 
-      {/* Background gradient */}
-      <LinearGradient
-        colors={isDone ? ['#0D2A1A', '#0F0F14'] : ['#0A1628', '#0F0F14']}
-        style={StyleSheet.absoluteFill}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
-      />
+      {/* Background */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <LinearGradient colors={[C.bg, C.bgDeep]} style={StyleSheet.absoluteFill} />
+        <View style={bg.arcTR} />
+        <View style={bg.arcBL} />
+        <View style={bg.hRule} />
+        {[0,1,2,3,4,5].map(row =>
+          [0,1,2,3,4].map(col => (
+            <View key={`d-${row}-${col}`} style={[bg.dot, { top: 100 + row * 80, left: 16 + col * 82 }]} />
+          ))
+        )}
+      </View>
 
-      <SafeAreaView style={styles.safeArea}>
-        {/* ── Header ── */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Emergency Response</Text>
-          <View style={[styles.statusBadge, isDone && styles.statusBadgeDone]}>
+      <SafeAreaView style={s.safe}>
+
+        {/* Header */}
+        <View style={s.header}>
+          <View>
+            <Text style={s.eyebrow}>Emergency active</Text>
+            <Text style={s.title}>Response</Text>
+          </View>
+          <View style={[s.statusBadge, isDone && s.statusBadgeDone]}>
             {!isDone && (
-              <Animated.View style={[styles.statusDot, { transform: [{ scale: pulseAnim }] }]} />
+              <Animated.View style={[s.statusDot, { opacity: pulseAnim }]} />
             )}
-            <Text style={[styles.statusBadgeText, isDone && styles.statusBadgeTextDone]}>
+            {isDone && <Feather name="check" size={12} color={C.green} />}
+            <Text style={[s.statusBadgeTxt, isDone && s.statusBadgeTxtDone]}>
               {isDone ? 'COMPLETE' : 'ACTIVE'}
             </Text>
           </View>
         </View>
 
-        {/* ── Current phase card ── */}
-        <View style={styles.phaseCard}>
-          <Text style={styles.phaseLabel}>
-            {STATE_LABEL[machineState] ?? 'Processing…'}
-          </Text>
-          {isCallingEmergency && (
-            <Text style={styles.phaseDetail}>
-              Speaking TTS in {ttsLanguage?.toUpperCase() ?? 'EN'}
-            </Text>
-          )}
-          {isCallingContacts && currentContact && (
-            <Text style={styles.phaseDetail}>
-              Contact {contactCascadeIndex + 1}: {currentContact.name}
-            </Text>
-          )}
+        {/* Current phase card */}
+        <View style={[s.phaseCard, isDone && s.phaseCardDone]}>
+          <View style={[s.phaseIconWrap, { backgroundColor: isDone ? C.greenTint : C.sageTint }]}>
+            <Feather name={phaseInfo.icon as any} size={22} color={isDone ? C.green : C.sage} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.phaseLabel}>{phaseInfo.text}</Text>
+            {isCallingEmergency && (
+              <Text style={s.phaseDetail}>
+                Speaking TTS in {ttsLanguage?.toUpperCase() ?? 'EN'}
+              </Text>
+            )}
+            {isCallingContacts && currentContact && (
+              <Text style={s.phaseDetail}>
+                Contact {contactCascadeIndex + 1}: {currentContact.name}
+              </Text>
+            )}
+          </View>
         </View>
 
-        {/* ── Location ── */}
+        {/* Location pill */}
         {(currentLat != null && currentLng != null) && (
-          <View style={styles.locationRow}>
-            <Text style={styles.locationText}>
-              📍 {currentLat.toFixed(5)}, {currentLng.toFixed(5)}
+          <View style={s.locationRow}>
+            <Feather name="map-pin" size={13} color={C.sage} />
+            <Text style={s.locationTxt}>
+              {currentLat.toFixed(5)}, {currentLng.toFixed(5)}
             </Text>
           </View>
         )}
 
-        {/* ── Tracking link ── */}
+        {/* Tracking link card */}
         {trackingLink && (
-          <View style={styles.trackingCard}>
-            <View style={styles.trackingRow}>
-              <Text style={styles.trackingLabel}>🔴 Live tracking</Text>
-              <TouchableOpacity onPress={handleCopyLink} style={styles.copyBtn}>
-                <Text style={styles.copyBtnText}>Copy</Text>
+          <View style={s.trackCard}>
+            <View style={s.trackRow}>
+              <View style={s.trackLabelRow}>
+                <View style={s.trackDot} />
+                <Text style={s.trackLabel}>Live tracking</Text>
+              </View>
+              <TouchableOpacity onPress={handleCopyLink} style={s.copyBtn}>
+                <Feather name="copy" size={12} color={C.sage} />
+                <Text style={s.copyBtnTxt}>Copy</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.trackingLink} numberOfLines={1}>
-              {trackingLink}
-            </Text>
+            <Text style={s.trackLink} numberOfLines={1}>{trackingLink}</Text>
           </View>
         )}
 
-        {/* ── Progress summary row ── */}
-        <View style={styles.summaryRow}>
-          <SummaryPill icon="📞" label="Emergency" active={emergencyCallMade} />
-          <SummaryPill icon="📱" label={`Contacts ×${contactCascadeIndex}`} active={contactCascadeIndex > 0} />
-          <SummaryPill icon="✉️" label={`SMS ×${smsSentCount}`} active={smsSentCount > 0} />
+        {/* Summary pills */}
+        <View style={s.summaryRow}>
+          <SummaryPill icon="phone" label="Emergency" active={emergencyCallMade} />
+          <SummaryPill icon="users" label={`Contacts ×${contactCascadeIndex}`} active={contactCascadeIndex > 0} />
+          <SummaryPill icon="message-square" label={`SMS ×${smsSentCount}`} active={smsSentCount > 0} />
         </View>
 
-        {/* ── Status log timeline ── */}
-        <View style={styles.logContainer}>
-          <Text style={styles.logTitle}>Timeline</Text>
+        {/* Timeline log */}
+        <View style={s.logWrap}>
+          <Text style={s.logHeading}>TIMELINE</Text>
           <ScrollView
             ref={scrollRef}
-            style={styles.logScroll}
+            style={s.logScroll}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.logContent}
+            contentContainerStyle={s.logContent}
           >
             {statusLog.map((entry, idx) => (
-              <View key={idx} style={styles.logEntry}>
-                <Text style={styles.logEntryIcon}>{entry.icon}</Text>
-                <View style={styles.logEntryBody}>
-                  <Text style={styles.logEntryMsg}>{entry.message}</Text>
-                  <Text style={styles.logEntryTime}>
+              <View key={idx} style={s.logEntry}>
+                <View style={s.logDot} />
+                <View style={s.logEntryBody}>
+                  <Text style={s.logMsg}>{entry.message}</Text>
+                  <Text style={s.logTime}>
                     {new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                   </Text>
                 </View>
               </View>
             ))}
             {statusLog.length === 0 && (
-              <Text style={styles.logEmpty}>Starting response engine…</Text>
+              <Text style={s.logEmpty}>Starting response engine…</Text>
             )}
           </ScrollView>
         </View>
 
-        {/* ── Done button ── */}
+        {/* Done button */}
         {isDone && (
-          <TouchableOpacity style={styles.doneBtn} onPress={handleDone} activeOpacity={0.85}>
-            <Text style={styles.doneBtnText}>Close — Help Is On The Way</Text>
+          <TouchableOpacity style={s.doneBtn} onPress={handleDone} activeOpacity={0.85}>
+            <LinearGradient colors={[C.sage, C.teal]} style={s.doneBtnGrad}>
+              <Feather name="check-circle" size={20} color="#FFFFFF" />
+              <Text style={s.doneBtnTxt}>Close — Help Is On The Way</Text>
+            </LinearGradient>
           </TouchableOpacity>
         )}
+
       </SafeAreaView>
     </View>
   );
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Summary pill ─────────────────────────────────────────────────────────────
 
 function SummaryPill({ icon, label, active }: { icon: string; label: string; active: boolean }) {
   return (
-    <View style={[styles.summaryPill, active && styles.summaryPillActive]}>
-      <Text style={styles.summaryPillIcon}>{icon}</Text>
-      <Text style={[styles.summaryPillLabel, active && styles.summaryPillLabelActive]}>
-        {label}
-      </Text>
+    <View style={[s.sPill, active && s.sPillActive]}>
+      <Feather name={icon as any} size={16} color={active ? C.sage : C.inkFaint} />
+      <Text style={[s.sPillLbl, active && s.sPillLblActive]}>{label}</Text>
     </View>
   );
 }
 
+// ─── Background art styles ─────────────────────────────────────────────────────
+const bg = StyleSheet.create({
+  arcTR: { position: 'absolute', width: 260, height: 260, borderRadius: 130, borderWidth: 1, borderColor: C.sagePale, top: -120, right: -70 },
+  arcBL: { position: 'absolute', width: 160, height: 160, borderRadius: 80, borderWidth: 1, borderColor: C.lineLight, bottom: 100, left: -70 },
+  hRule: { position: 'absolute', left: 0, right: 0, top: 180, height: 1, backgroundColor: C.lineLight },
+  dot:   { position: 'absolute', width: 3, height: 3, borderRadius: 1.5, backgroundColor: C.sagePale },
+});
+
 // ─── Styles ───────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  root:    { flex: 1, backgroundColor: C.bg },
+  safe:    { flex: 1, paddingHorizontal: 24 },
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#0A1628' },
-  safeArea: { flex: 1, paddingHorizontal: 20 },
+  header:   { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: 16, paddingBottom: 24 },
+  eyebrow:  { fontSize: 13, color: C.inkFaint, fontWeight: '500', letterSpacing: 0.3, fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif' },
+  title:    { fontSize: 30, fontWeight: '900', color: C.ink, letterSpacing: -0.5, marginTop: 2, fontFamily: Platform.OS === 'ios' ? 'AvenirNext-Heavy' : 'sans-serif-black' },
 
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingTop: 16,
-    paddingBottom: 20,
-  },
-  headerTitle: { fontSize: 20, fontWeight: '900', color: '#FFFFFF' },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(255,59,59,0.12)',
-    borderRadius: 20,
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderWidth: 1,
-    borderColor: '#FF3B3B44',
-  },
-  statusBadgeDone: {
-    backgroundColor: 'rgba(46,204,113,0.12)',
-    borderColor: '#2ECC7144',
-  },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-    backgroundColor: '#FF3B3B',
-  },
-  statusBadgeText: { fontSize: 11, fontWeight: '800', color: '#FF3B3B', letterSpacing: 1 },
-  statusBadgeTextDone: { color: '#2ECC71' },
+  statusBadge:    { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: C.lineLight, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 1, borderColor: C.line, marginBottom: 4 },
+  statusBadgeDone:{ backgroundColor: C.greenTint, borderColor: C.sage + '44' },
+  statusDot:      { width: 7, height: 7, borderRadius: 4, backgroundColor: C.coral },
+  statusBadgeTxt: { fontSize: 11, fontWeight: '800', color: C.coral, letterSpacing: 1 },
+  statusBadgeTxtDone: { color: C.green },
 
-  phaseCard: {
-    backgroundColor: '#111A2E',
-    borderRadius: 16,
-    padding: 18,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: '#1E3052',
-  },
-  phaseLabel: { fontSize: 16, fontWeight: '700', color: '#FFFFFF', marginBottom: 4 },
-  phaseDetail: { fontSize: 13, color: '#7A9CC4', fontWeight: '500' },
+  phaseCard: { flexDirection: 'row', alignItems: 'center', gap: 14, backgroundColor: C.bgCard, borderRadius: 18, padding: 18, marginBottom: 14, borderWidth: 1, borderColor: C.line, shadowColor: '#00000010', shadowOffset: { width: 0, height: 3 }, shadowRadius: 8, elevation: 2 },
+  phaseCardDone: { borderColor: C.sage + '44' },
+  phaseIconWrap: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  phaseLabel:  { fontSize: 15, fontWeight: '700', color: C.ink, marginBottom: 3, letterSpacing: -0.1 },
+  phaseDetail: { fontSize: 12, color: C.inkFaint, fontWeight: '500' },
 
-  locationRow: {
-    marginBottom: 12,
-  },
-  locationText: { fontSize: 12, color: '#445566', fontVariant: ['tabular-nums'] },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 14, backgroundColor: C.lineLight, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8 },
+  locationTxt: { fontSize: 12, color: C.inkMid, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
 
-  trackingCard: {
-    backgroundColor: '#0D1E0D',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: '#1A4A1A',
-  },
-  trackingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  trackingLabel: { fontSize: 13, fontWeight: '700', color: '#2ECC71' },
-  copyBtn: {
-    backgroundColor: '#1A4A1A',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  copyBtnText: { fontSize: 11, fontWeight: '700', color: '#2ECC71' },
-  trackingLink: { fontSize: 11, color: '#5A8A5A', fontVariant: ['tabular-nums'] },
+  trackCard: { backgroundColor: C.sageTint, borderRadius: 16, padding: 14, marginBottom: 14, borderWidth: 1, borderColor: C.sagePale },
+  trackRow:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  trackLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  trackDot:  { width: 8, height: 8, borderRadius: 4, backgroundColor: C.sage },
+  trackLabel:{ fontSize: 13, fontWeight: '700', color: C.sage },
+  copyBtn:   { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: C.bgCard, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5, borderWidth: 1, borderColor: C.sagePale },
+  copyBtnTxt:{ fontSize: 11, fontWeight: '700', color: C.sage },
+  trackLink: { fontSize: 11, color: C.inkMid, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
 
-  summaryRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  summaryPill: {
-    flex: 1,
-    flexDirection: 'column',
-    alignItems: 'center',
-    backgroundColor: '#111A2E',
-    borderRadius: 12,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: '#1E3052',
-    gap: 4,
-  },
-  summaryPillActive: {
-    backgroundColor: '#0D2A1A',
-    borderColor: '#1A4A1A',
-  },
-  summaryPillIcon: { fontSize: 18 },
-  summaryPillLabel: { fontSize: 10, color: '#445566', fontWeight: '600', textAlign: 'center' },
-  summaryPillLabelActive: { color: '#2ECC71' },
+  summaryRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  sPill:     { flex: 1, alignItems: 'center', backgroundColor: C.bgCard, borderRadius: 14, padding: 12, borderWidth: 1, borderColor: C.line, gap: 4 },
+  sPillActive: { backgroundColor: C.sageTint, borderColor: C.sagePale },
+  sPillLbl:  { fontSize: 10, color: C.inkFaint, fontWeight: '600', textAlign: 'center' },
+  sPillLblActive: { color: C.sage },
 
-  logContainer: {
-    flex: 1,
-    backgroundColor: '#111A2E',
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: '#1E3052',
-    marginBottom: 16,
-  },
-  logTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#445566',
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    marginBottom: 10,
-  },
+  logWrap:   { flex: 1, backgroundColor: C.bgCard, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: C.line, marginBottom: 16 },
+  logHeading:{ fontSize: 9, fontWeight: '800', color: C.inkFaint, letterSpacing: 3, marginBottom: 12 },
   logScroll: { flex: 1 },
-  logContent: { gap: 8, paddingBottom: 4 },
-  logEntry: {
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'flex-start',
-  },
-  logEntryIcon: { fontSize: 14, marginTop: 1, width: 20 },
+  logContent:{ gap: 10, paddingBottom: 4 },
+  logEntry:  { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
+  logDot:    { width: 7, height: 7, borderRadius: 3.5, backgroundColor: C.sagePale, marginTop: 4 },
   logEntryBody: { flex: 1 },
-  logEntryMsg: { fontSize: 12, color: '#AABBCC', fontWeight: '500', lineHeight: 17 },
-  logEntryTime: { fontSize: 9, color: '#334455', marginTop: 2, fontVariant: ['tabular-nums'] },
-  logEmpty: { fontSize: 12, color: '#334455', textAlign: 'center', paddingVertical: 20 },
+  logMsg:    { fontSize: 13, color: C.inkMid, fontWeight: '500', lineHeight: 18 },
+  logTime:   { fontSize: 10, color: C.inkFaint, marginTop: 2, fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
+  logEmpty:  { fontSize: 13, color: C.inkFaint, textAlign: 'center', paddingVertical: 20 },
 
-  doneBtn: {
-    backgroundColor: '#2ECC71',
-    borderRadius: 16,
-    paddingVertical: 18,
-    alignItems: 'center',
-    marginBottom: Platform.OS === 'ios' ? 0 : 8,
-    shadowColor: '#2ECC71',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 12,
-    elevation: 6,
-  },
-  doneBtnText: { fontSize: 16, fontWeight: '800', color: '#0D2A1A' },
+  doneBtn:     { borderRadius: 18, overflow: 'hidden', marginBottom: Platform.OS === 'ios' ? 0 : 8 },
+  doneBtnGrad: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 18 },
+  doneBtnTxt:  { fontSize: 16, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.3 },
 });

@@ -11,8 +11,17 @@ import {
 import { useState, useRef, useEffect } from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Feather } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
+
+const C = {
+  bg: '#F5F0E8', bgDeep: '#EDE7D9', bgCard: '#FFFFFF',
+  sage: '#4A7060', sagePale: '#C4D8CC', sageTint: '#EBF3EF', teal: '#356060',
+  ink: '#1C2826', inkMid: '#445550', inkFaint: '#8A9E96',
+  line: '#DDD6C8', lineLight: '#EAE4D8', coral: '#C8503C',
+};
 
 const OTP_LENGTH = 6;
 const RESEND_SECONDS = 30;
@@ -120,137 +129,135 @@ export default function OTPScreen() {
     : '';
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <View style={styles.inner}>
+    <SafeAreaView style={s.root}>
+      {/* Background art */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        <LinearGradient colors={[C.bg, C.bgDeep]} style={StyleSheet.absoluteFill} />
+        <View style={bg.arcTR} />
+        <View style={bg.arcBL} />
+        <View style={bg.bracketH} />
+        <View style={bg.bracketV} />
+        {[0,1,2,3,4,5,6].map(row =>
+          [0,1,2,3,4].map(col => (
+            <View key={`d-${row}-${col}`} style={[bg.dot, { top: 100 + row * 80, left: 16 + col * 82 }]} />
+          ))
+        )}
+      </View>
+
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <View style={s.inner}>
+
           {/* Back */}
-          <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-            <Text style={styles.backBtnText}>← Back</Text>
+          <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+            <Feather name="arrow-left" size={18} color={C.inkMid} />
+            <Text style={s.backText}>Back</Text>
           </TouchableOpacity>
 
           {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>Verify your{'\n'}number</Text>
-            <Text style={styles.subtitle}>
+          <View style={s.header}>
+            <Text style={s.title}>Verify your{'\n'}number</Text>
+            <Text style={s.subtitle}>
               Enter the 6-digit code sent to{'\n'}
-              <Text style={styles.phoneHighlight}>{maskedPhone}</Text>
+              <Text style={s.phoneHighlight}>{maskedPhone}</Text>
             </Text>
           </View>
 
           {/* OTP Boxes */}
-          <View style={styles.otpRow}>
-            {Array(OTP_LENGTH)
-              .fill(null)
-              .map((_, i) => (
-                <TextInput
-                  key={i}
-                  ref={el => { inputRefs.current[i] = el; }}
-                  style={[styles.otpBox, otp[i] ? styles.otpBoxFilled : null]}
-                  value={otp[i]}
-                  onChangeText={t => handleDigit(t, i)}
-                  onKeyPress={({ nativeEvent }) => {
-                    if (nativeEvent.key === 'Backspace') handleBackspace(i);
-                  }}
-                  keyboardType="number-pad"
-                  maxLength={6} // allow paste
-                  selectTextOnFocus
-                  autoFocus={i === 0}
-                />
-              ))}
+          <View style={s.otpRow}>
+            {Array(OTP_LENGTH).fill(null).map((_, i) => (
+              <TextInput
+                key={i}
+                ref={el => { inputRefs.current[i] = el; }}
+                style={[s.otpBox, otp[i] ? s.otpBoxFilled : null]}
+                value={otp[i]}
+                onChangeText={t => handleDigit(t, i)}
+                onKeyPress={({ nativeEvent }) => {
+                  if (nativeEvent.key === 'Backspace') handleBackspace(i);
+                }}
+                keyboardType="number-pad"
+                maxLength={6}
+                selectTextOnFocus
+                autoFocus={i === 0}
+              />
+            ))}
           </View>
 
           {/* Verify button */}
           <TouchableOpacity
-            style={[styles.btn, (!isComplete || isVerifying) && styles.btnDisabled]}
+            style={[s.btnWrap, (!isComplete || isVerifying) && s.btnWrapDisabled]}
             onPress={handleVerify}
             disabled={!isComplete || isVerifying}
-            activeOpacity={0.85}
+            activeOpacity={0.88}
           >
-            <Text style={styles.btnText}>
-              {isVerifying ? 'Verifying...' : 'Verify →'}
-            </Text>
+            {!isComplete || isVerifying ? (
+              <View style={s.btnInner}>
+                <Text style={[s.btnText, { color: C.inkFaint }]}>
+                  {isVerifying ? 'Verifying…' : 'Verify'}
+                </Text>
+              </View>
+            ) : (
+              <LinearGradient colors={[C.sage, C.teal]} style={s.btnInner}>
+                <Text style={s.btnText}>{isVerifying ? 'Verifying…' : 'Verify'}</Text>
+                <Feather name="arrow-right" size={18} color="#FFFFFF" />
+              </LinearGradient>
+            )}
           </TouchableOpacity>
 
           {/* Resend */}
-          <View style={styles.resendRow}>
-            <Text style={styles.resendLabel}>Didn't receive the code? </Text>
+          <View style={s.resendRow}>
+            <Text style={s.resendLabel}>Didn't receive the code? </Text>
             <TouchableOpacity onPress={handleResend} disabled={countdown > 0}>
-              <Text style={[styles.resendBtn, countdown > 0 && styles.resendBtnDisabled]}>
+              <Text style={[s.resendBtn, countdown > 0 && s.resendBtnDisabled]}>
                 {countdown > 0 ? `Resend in ${countdown}s` : 'Resend OTP'}
               </Text>
             </TouchableOpacity>
           </View>
+
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#050505' },
+const bg = StyleSheet.create({
+  arcTR:    { position: 'absolute', width: 280, height: 280, borderRadius: 140, borderWidth: 1, borderColor: C.sagePale, top: -130, right: -70 },
+  arcBL:    { position: 'absolute', width: 160, height: 160, borderRadius: 80, borderWidth: 1, borderColor: C.lineLight, bottom: 80, left: -70 },
+  bracketH: { position: 'absolute', top: 16, left: 16, width: 22, height: 1, backgroundColor: C.sage, opacity: 0.3 },
+  bracketV: { position: 'absolute', top: 16, left: 16, width: 1, height: 22, backgroundColor: C.sage, opacity: 0.3 },
+  dot:      { position: 'absolute', width: 3, height: 3, borderRadius: 1.5, backgroundColor: C.sagePale },
+});
+
+const s = StyleSheet.create({
+  root:  { flex: 1, backgroundColor: C.bg },
   inner: { flex: 1, padding: 24 },
-  backBtn: { marginBottom: 32 },
-  backBtnText: { fontSize: 13, color: '#00E5FF', fontWeight: '800', letterSpacing: 1 },
-  header: { marginBottom: 48 },
+  backBtn:{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 36 },
+  backText:{ fontSize: 14, color: C.inkMid, fontWeight: '600' },
+  header:{ marginBottom: 48 },
   title: {
-    fontSize: 34,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 1,
-    marginBottom: 12,
-    lineHeight: 42,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    fontSize: 36, fontWeight: '900', color: C.ink, letterSpacing: -1,
+    marginBottom: 14, lineHeight: 44,
+    fontFamily: Platform.OS === 'ios' ? 'AvenirNext-Heavy' : 'sans-serif-black',
   },
-  subtitle: { fontSize: 13, color: '#888888', lineHeight: 24, fontWeight: '600' },
-  phoneHighlight: { color: '#FFFFFF', fontWeight: '700' },
-  otpRow: {
-    flexDirection: 'row',
-    gap: 10,
-    justifyContent: 'center',
-    marginBottom: 40,
-  },
+  subtitle: { fontSize: 14, color: C.inkFaint, lineHeight: 24, fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif' },
+  phoneHighlight: { color: C.ink, fontWeight: '700' },
+  otpRow: { flexDirection: 'row', gap: 10, justifyContent: 'center', marginBottom: 40 },
   otpBox: {
-    flex: 1,
-    height: 64,
-    backgroundColor: '#111111',
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: '#222222',
-    textAlign: 'center',
-    fontSize: 26,
-    fontWeight: '800',
-    color: '#FFFFFF',
-    maxWidth: 52,
+    flex: 1, height: 68, backgroundColor: C.bgCard, borderRadius: 16,
+    borderWidth: 1.5, borderColor: C.line, textAlign: 'center',
+    fontSize: 28, fontWeight: '800', color: C.ink, maxWidth: 52,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
   },
   otpBoxFilled: {
-    borderColor: '#00E5FF',
-    backgroundColor: '#002A2A',
-    shadowColor: '#00E5FF',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 4,
+    borderColor: C.sage, backgroundColor: C.sageTint,
+    shadowColor: C.sage, shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2, shadowRadius: 6, elevation: 4,
   },
-  btn: {
-    backgroundColor: '#00E5FF',
-    borderRadius: 16,
-    paddingVertical: 18,
-    alignItems: 'center',
-    marginBottom: 20,
-    shadowColor: '#00E5FF',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  btnDisabled: { backgroundColor: '#050505', shadowOpacity: 0, borderWidth: 1, borderColor: '#222222' },
-  btnText: { fontSize: 17, fontWeight: '900', color: '#050505', letterSpacing: 1 },
+  btnWrap:{ borderRadius: 18, overflow: 'hidden', marginBottom: 24 },
+  btnWrapDisabled: {},
+  btnInner:{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingVertical: 20, backgroundColor: C.lineLight },
+  btnText: { fontSize: 17, fontWeight: '900', color: '#FFFFFF', letterSpacing: 0.5 },
   resendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  resendLabel: { fontSize: 13, color: '#666666', fontWeight: '600' },
-  resendBtn: { fontSize: 13, fontWeight: '800', color: '#00E5FF' },
-  resendBtnDisabled: { color: '#444444' },
+  resendLabel: { fontSize: 13, color: C.inkFaint, fontWeight: '500' },
+  resendBtn: { fontSize: 13, fontWeight: '800', color: C.sage },
+  resendBtnDisabled: { color: C.inkFaint },
 });

@@ -18,8 +18,31 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useEffect, useState, useCallback } from 'react';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Feather } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
+
+// ─── Design tokens (shared with home screen) ──────────────────────────────────
+const C = {
+  bg:        '#F5F0E8',
+  bgDeep:    '#EDE7D9',
+  bgCard:    '#FFFFFF',
+  sage:      '#4A7060',
+  sageLight: '#7A9E8E',
+  sagePale:  '#C4D8CC',
+  sageTint:  '#EBF3EF',
+  coral:     '#C8503C',
+  amber:     '#B87830',
+  violet:    '#7A5A96',
+  blue:      '#4A6A9A',
+  green:     '#3A8050',
+  ink:       '#1C2826',
+  inkMid:    '#445550',
+  inkFaint:  '#8A9E96',
+  line:      '#DDD6C8',
+  lineLight: '#EAE4D8',
+};
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -37,11 +60,11 @@ interface IncidentRecord {
   tracking_token: string | null;
 }
 
-const TRIGGER_LABELS: Record<string, { label: string; emoji: string; color: string }> = {
-  auto_sensor:  { label: 'Auto Detected',   emoji: '🤖', color: '#FF3B3B' },
-  manual_test:  { label: 'Test Alarm',       emoji: '🔔', color: '#F39C12' },
-  samaritan:    { label: 'Samaritan Report', emoji: '🆘', color: '#9B59B6' },
-  manual:       { label: 'Manual Trigger',   emoji: '👆', color: '#3498DB' },
+const TRIGGER_META: Record<string, { label: string; icon: string; color: string; bg: string }> = {
+  auto_sensor:  { label: 'Auto Detected',   icon: 'cpu',          color: C.coral,  bg: '#FAE8E5' },
+  manual_test:  { label: 'Test Alarm',       icon: 'bell',         color: C.amber,  bg: '#FAF0E0' },
+  samaritan:    { label: 'Samaritan Report', icon: 'heart',        color: C.violet, bg: '#F2EBF8' },
+  manual:       { label: 'Manual Trigger',   icon: 'alert-circle', color: C.blue,   bg: '#E8EDF5' },
 };
 
 // ─── Main Screen ─────────────────────────────────────────────────────────────
@@ -84,39 +107,49 @@ export default function IncidentsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <Text style={styles.pageTitle}>Incidents</Text>
-        <View style={styles.centered}>
-          <ActivityIndicator size="large" color="#FF3B3B" />
+      <SafeAreaView style={s.root}>
+        <BgArt />
+        <View style={s.header}>
+          <Text style={s.eyebrow}>Your safety log</Text>
+          <Text style={s.title}>History</Text>
+        </View>
+        <View style={s.centered}>
+          <ActivityIndicator size="large" color={C.sage} />
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.pageTitle}>Incidents</Text>
+    <SafeAreaView style={s.root}>
+      <BgArt />
+
+      <View style={s.header}>
+        <View>
+          <Text style={s.eyebrow}>Your safety log</Text>
+          <Text style={s.title}>History</Text>
+        </View>
         {incidents.length > 0 && (
-          <View style={styles.countBadge}>
-            <Text style={styles.countBadgeText}>{incidents.length}</Text>
+          <View style={s.countBadge}>
+            <Text style={s.countBadgeTxt}>{incidents.length}</Text>
           </View>
         )}
       </View>
 
       {error && (
-        <View style={styles.errorBar}>
-          <Text style={styles.errorText}>⚠️ {error}</Text>
+        <View style={s.errorBar}>
+          <Feather name="alert-triangle" size={14} color={C.coral} />
+          <Text style={s.errorTxt}>{error}</Text>
         </View>
       )}
 
       <FlatList
         data={incidents}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={incidents.length === 0 ? styles.emptyContainer : styles.list}
+        contentContainerStyle={incidents.length === 0 ? s.emptyContainer : s.list}
         showsVerticalScrollIndicator={false}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor="#FF3B3B" />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={C.sage} />
         }
         ListEmptyComponent={<EmptyState />}
         renderItem={({ item }) => <IncidentCard incident={item} />}
@@ -125,14 +158,39 @@ export default function IncidentsScreen() {
   );
 }
 
+// ─── Background decoration (matches home screen style) ────────────────────────
+
+function BgArt() {
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <LinearGradient colors={[C.bg, C.bgDeep]} style={StyleSheet.absoluteFill} />
+      <View style={bg.arcTR} />
+      <View style={bg.arcBL} />
+      <View style={bg.hRule1} />
+      <View style={bg.hRule2} />
+      <View style={bg.slash1} />
+      <View style={bg.slash1b} />
+      <View style={bg.bracketH} />
+      <View style={bg.bracketV} />
+      {[0,1,2,3,4,5].map(row =>
+        [0,1,2,3,4].map(col => (
+          <View key={`d-${row}-${col}`} style={[bg.dot, { top: 130 + row * 72, left: 16 + col * 82 }]} />
+        ))
+      )}
+    </View>
+  );
+}
+
 // ─── Empty State ──────────────────────────────────────────────────────────────
 
 function EmptyState() {
   return (
-    <View style={styles.emptyState}>
-      <Text style={styles.emptyIcon}>🛡️</Text>
-      <Text style={styles.emptyTitle}>No incidents yet</Text>
-      <Text style={styles.emptySubtitle}>
+    <View style={s.emptyState}>
+      <View style={s.emptyIconWrap}>
+        <Feather name="shield" size={40} color={C.sage} />
+      </View>
+      <Text style={s.emptyTitle}>No incidents yet</Text>
+      <Text style={s.emptySubtitle}>
         Your crash events, test alarms and Samaritan reports will appear here. Ride safe!
       </Text>
     </View>
@@ -142,180 +200,252 @@ function EmptyState() {
 // ─── Incident Card ────────────────────────────────────────────────────────────
 
 function IncidentCard({ incident }: { incident: IncidentRecord }) {
-  const meta = TRIGGER_LABELS[incident.trigger_type] ?? {
+  const meta = TRIGGER_META[incident.trigger_type] ?? {
     label: incident.trigger_type,
-    emoji: '📍',
-    color: '#666680',
+    icon: 'map-pin',
+    color: C.inkFaint,
+    bg: C.lineLight,
   };
 
-  const dateStr = new Date(incident.triggered_at).toLocaleDateString();
-  const timeStr = new Date(incident.triggered_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  
+  const dateStr = new Date(incident.triggered_at).toLocaleDateString('en-IN', {
+    day: 'numeric', month: 'short', year: 'numeric',
+  });
+  const timeStr = new Date(incident.triggered_at).toLocaleTimeString([], {
+    hour: '2-digit', minute: '2-digit',
+  });
+
   const isCancelled = incident.status === 'cancelled' || incident.cancelled_at != null;
-  const wasCalled = incident.called_emergency === true;
+  const wasCalled   = incident.called_emergency === true;
   const wasNotified = incident.contacts_notified === true;
 
   const outcome = isCancelled
-    ? { text: 'Cancelled', color: '#2ECC71' }
+    ? { text: 'Cancelled',       color: C.green,  bg: '#E8F5EE' }
     : wasCalled
-    ? { text: 'Emergency Called', color: '#FF3B3B' }
-    : { text: 'In Progress', color: '#F39C12' };
+    ? { text: 'Emergency Called', color: C.coral,  bg: '#FAE8E5' }
+    : { text: 'In Progress',     color: C.amber,  bg: '#FAF0E0' };
 
   return (
-    <View style={styles.card}>
-      {/* Header row */}
-      <View style={styles.cardHeader}>
-        <View style={[styles.triggerBadge, { backgroundColor: meta.color + '22', borderColor: meta.color + '55' }]}>
-          <Text style={{ fontSize: 12 }}>{meta.emoji}</Text>
-          <Text style={[styles.triggerLabel, { color: meta.color }]}>{meta.label}</Text>
-        </View>
-        <View style={[styles.outcomeBadge, { borderColor: outcome.color + '55' }]}>
-          <Text style={[styles.outcomeText, { color: outcome.color }]}>{outcome.text}</Text>
-        </View>
-      </View>
+    <View style={s.card}>
+      {/* Coloured left accent bar */}
+      <View style={[s.cardAccent, { backgroundColor: meta.color }]} />
 
-      {/* Date / time / location */}
-      <Text style={styles.dateText}>{dateStr} · {timeStr}</Text>
-      <Text style={styles.coordsText}>
-        📍 {incident.lat.toFixed(4)}, {incident.lng.toFixed(4)}
-      </Text>
-
-      {/* Status pills */}
-      <View style={styles.pillRow}>
-        <StatusPill active={wasCalled} label="112 Called" />
-        <StatusPill active={wasNotified} label="Contacts SMS" />
-        {isCancelled && incident.cancel_reason && (
-          <View style={styles.pill}>
-            <Text style={styles.pillText}>✏️ {incident.cancel_reason}</Text>
+      <View style={s.cardInner}>
+        {/* Header row */}
+        <View style={s.cardHeader}>
+          <View style={[s.triggerBadge, { backgroundColor: meta.bg }]}>
+            <Feather name={meta.icon as any} size={12} color={meta.color} />
+            <Text style={[s.triggerLbl, { color: meta.color }]}>{meta.label}</Text>
           </View>
+          <View style={[s.outcomeBadge, { backgroundColor: outcome.bg }]}>
+            <Text style={[s.outcomeTxt, { color: outcome.color }]}>{outcome.text}</Text>
+          </View>
+        </View>
+
+        {/* Date / time / location */}
+        <View style={s.dateRow}>
+          <Feather name="clock" size={11} color={C.inkFaint} />
+          <Text style={s.dateTxt}>{dateStr} · {timeStr}</Text>
+        </View>
+        <View style={s.dateRow}>
+          <Feather name="map-pin" size={11} color={C.inkFaint} />
+          <Text style={s.coordsTxt}>
+            {incident.lat.toFixed(4)}, {incident.lng.toFixed(4)}
+          </Text>
+        </View>
+
+        {/* Divider */}
+        <View style={s.cardDivider} />
+
+        {/* Status pills */}
+        <View style={s.pillRow}>
+          <StatusPill active={wasCalled}    label="112 Called" />
+          <StatusPill active={wasNotified}  label="Contacts SMS" />
+          {isCancelled && incident.cancel_reason && (
+            <View style={s.pill}>
+              <Feather name="edit-2" size={10} color={C.inkFaint} />
+              <Text style={s.pillTxt}>{incident.cancel_reason}</Text>
+            </View>
+          )}
+        </View>
+
+        {/* Tracking link */}
+        {incident.tracking_token && !isCancelled && (
+          <TouchableOpacity
+            style={s.trackBtn}
+            onPress={() => Linking.openURL(`https://crashguard.app/track/${incident.tracking_token}`)}
+          >
+            <Feather name="link" size={13} color={C.sage} />
+            <Text style={s.trackBtnTxt}>View Tracking Link</Text>
+          </TouchableOpacity>
         )}
       </View>
-
-      {/* Tracking link */}
-      {incident.tracking_token && !isCancelled && (
-        <TouchableOpacity
-          style={styles.trackBtn}
-          onPress={() => Linking.openURL(`https://crashguard.app/track/${incident.tracking_token}`)}
-        >
-          <Text style={styles.trackBtnText}>🔗 View Tracking Link</Text>
-        </TouchableOpacity>
-      )}
     </View>
   );
 }
 
 function StatusPill({ active, label }: { active: boolean; label: string }) {
   return (
-    <View style={[styles.pill, active && styles.pillActive]}>
-      <Text style={[styles.pillText, active && styles.pillTextActive]}>
-        {active ? '✓' : '○'} {label}
-      </Text>
+    <View style={[s.pill, active && s.pillActive]}>
+      <Feather
+        name={active ? 'check-circle' : 'circle'}
+        size={10}
+        color={active ? C.sage : C.inkFaint}
+      />
+      <Text style={[s.pillTxt, active && s.pillTxtActive]}>{label}</Text>
     </View>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Background art styles ─────────────────────────────────────────────────────
+const bg = StyleSheet.create({
+  arcTR: { position: 'absolute', width: 300, height: 300, borderRadius: 150, borderWidth: 1, borderColor: C.sagePale, top: -140, right: -80 },
+  arcBL: { position: 'absolute', width: 180, height: 180, borderRadius: 90, borderWidth: 1, borderColor: C.lineLight, bottom: 80, left: -80 },
+  hRule1: { position: 'absolute', left: 0, right: 0, top: 180, height: 1, backgroundColor: C.lineLight },
+  hRule2: { position: 'absolute', left: 24, right: 24, top: 193, height: 1, backgroundColor: C.lineLight, opacity: 0.5 },
+  slash1:  { position: 'absolute', width: 100, height: 1, backgroundColor: C.line,      bottom: 200, left: -8, transform: [{ rotate: '-20deg' }] },
+  slash1b: { position: 'absolute', width: 100, height: 1, backgroundColor: C.lineLight, bottom: 215, left: -8, transform: [{ rotate: '-20deg' }] },
+  bracketH: { position: 'absolute', top: 16, left: 16, width: 22, height: 1, backgroundColor: C.sage, opacity: 0.3 },
+  bracketV: { position: 'absolute', top: 16, left: 16, width: 1, height: 22, backgroundColor: C.sage, opacity: 0.3 },
+  dot: { position: 'absolute', width: 3, height: 3, borderRadius: 1.5, backgroundColor: C.sagePale },
+});
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#050505' },
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: C.bg },
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
+    alignItems: 'flex-end',
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
     paddingTop: 16,
-    paddingBottom: 8,
-    gap: 10,
+    paddingBottom: 16,
   },
-  pageTitle: {
-    fontSize: 28,
+  eyebrow: {
+    fontSize: 13,
+    color: C.inkFaint,
+    fontWeight: '500',
+    letterSpacing: 0.3,
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+  },
+  title: {
+    fontSize: 30,
     fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 2,
-    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+    color: C.ink,
+    letterSpacing: -0.5,
+    marginTop: 2,
+    fontFamily: Platform.OS === 'ios' ? 'AvenirNext-Heavy' : 'sans-serif-black',
   },
   countBadge: {
-    backgroundColor: '#00E5FF',
-    borderRadius: 10,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    minWidth: 24,
-    alignItems: 'center',
+    backgroundColor: C.sage,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginBottom: 4,
   },
-  countBadgeText: { fontSize: 11, fontWeight: '800', color: '#050505' },
+  countBadgeTxt: { fontSize: 13, fontWeight: '800', color: '#FFFFFF' },
+
   errorBar: {
-    marginHorizontal: 16,
-    marginBottom: 8,
-    backgroundColor: '#330A0A',
-    borderRadius: 10,
-    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginHorizontal: 24,
+    marginBottom: 12,
+    backgroundColor: '#FAE8E5',
+    borderRadius: 12,
+    padding: 12,
     borderWidth: 1,
-    borderColor: '#FF2A4D',
+    borderColor: C.coral + '55',
   },
-  errorText: { fontSize: 12, color: '#FF2A4D' },
-  list: { padding: 16, gap: 12, paddingBottom: 40 },
+  errorTxt: { fontSize: 13, color: C.coral, fontWeight: '600', flex: 1 },
+
+  list: { paddingHorizontal: 24, paddingTop: 4, paddingBottom: 120, gap: 14 },
   emptyContainer: { flex: 1 },
+
   emptyState: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 40,
     paddingBottom: 80,
-    gap: 10,
+    gap: 14,
     minHeight: 400,
   },
-  emptyIcon: { fontSize: 56, marginBottom: 8 },
-  emptyTitle: { fontSize: 20, fontWeight: '900', color: '#FFFFFF', letterSpacing: 1 },
-  emptySubtitle: { fontSize: 14, color: '#888888', textAlign: 'center', lineHeight: 21 },
-  card: {
-    backgroundColor: '#111111',
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: '#222222',
-    padding: 16,
-    gap: 8,
+  emptyIconWrap: {
+    width: 80,
+    height: 80,
+    borderRadius: 28,
+    backgroundColor: C.sageTint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
   },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: C.ink,
+    letterSpacing: -0.3,
+    fontFamily: Platform.OS === 'ios' ? 'AvenirNext-Heavy' : 'sans-serif-black',
+  },
+  emptySubtitle: {
+    fontSize: 14,
+    color: C.inkFaint,
+    textAlign: 'center',
+    lineHeight: 22,
+    fontFamily: Platform.OS === 'ios' ? 'Georgia' : 'serif',
+  },
+
+  // Card
+  card: {
+    backgroundColor: C.bgCard,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: C.line,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    shadowColor: '#00000010',
+    shadowOffset: { width: 0, height: 3 },
+    shadowRadius: 10,
+    elevation: 2,
+  },
+  cardAccent: { width: 4 },
+  cardInner: { flex: 1, padding: 16, gap: 8 },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   triggerBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 8,
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    gap: 4,
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5,
   },
-  triggerLabel: { fontSize: 11, fontWeight: '800', letterSpacing: 0.5 },
-  outcomeBadge: {
-    borderRadius: 8,
-    borderWidth: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+  triggerLbl: { fontSize: 11, fontWeight: '800', letterSpacing: 0.3 },
+  outcomeBadge: { borderRadius: 10, paddingHorizontal: 10, paddingVertical: 5 },
+  outcomeTxt: { fontSize: 10, fontWeight: '800', letterSpacing: 0.3 },
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  dateTxt: {
+    fontSize: 13,
+    color: C.inkMid,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
-  outcomeText: { fontSize: 10, fontWeight: '800', letterSpacing: 0.5 },
-  dateText: { fontSize: 12, color: '#888888', fontWeight: '600', fontVariant: ['tabular-nums'], letterSpacing: 0.5 },
-  coordsText: { fontSize: 11, color: '#666666', fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace' },
-  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 4 },
+  coordsTxt: {
+    fontSize: 12,
+    color: C.inkFaint,
+    fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
+  },
+  cardDivider: { height: 1, backgroundColor: C.lineLight, marginVertical: 2 },
+  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   pill: {
-    borderRadius: 6,
-    backgroundColor: '#050505',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderWidth: 1,
-    borderColor: '#222222',
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    borderRadius: 8, backgroundColor: C.lineLight,
+    paddingHorizontal: 10, paddingVertical: 5,
   },
-  pillActive: { backgroundColor: '#002A2A', borderColor: '#00E5FF44' },
-  pillText: { fontSize: 10, color: '#666666', fontWeight: '700' },
-  pillTextActive: { color: '#00E5FF' },
+  pillActive: { backgroundColor: C.sageTint },
+  pillTxt: { fontSize: 11, color: C.inkFaint, fontWeight: '700' },
+  pillTxtActive: { color: C.sage },
   trackBtn: {
-    marginTop: 4,
-    backgroundColor: '#050505',
-    borderRadius: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    marginTop: 4, backgroundColor: C.sageTint,
+    borderRadius: 10, paddingVertical: 10, paddingHorizontal: 14,
     alignSelf: 'flex-start',
-    borderWidth: 1,
-    borderColor: '#222222',
   },
-  trackBtnText: { fontSize: 11, color: '#00E5FF', fontWeight: '700', letterSpacing: 0.5 },
+  trackBtnTxt: { fontSize: 12, color: C.sage, fontWeight: '800', letterSpacing: 0.3 },
 });
