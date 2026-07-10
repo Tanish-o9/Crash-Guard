@@ -217,6 +217,8 @@ export const agentService = {
     severity?: string | null;
     etaMinutes?: number | null;
     summary?: string | null;
+    lat?: number | null;
+    lng?: number | null;
   }): Promise<{ sid: string | null; status: string; modelUsed: string; error?: string } | null> {
     try {
       const controller = new AbortController();
@@ -231,6 +233,8 @@ export const agentService = {
           severity: p.severity ?? null,
           eta_minutes: p.etaMinutes ?? null,
           summary: p.summary ?? null,
+          lat: p.lat ?? null,
+          lng: p.lng ?? null,
         }),
         signal: controller.signal,
       });

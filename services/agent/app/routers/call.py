@@ -151,6 +151,8 @@ class HospitalCallRequest(BaseModel):
     severity: Optional[str] = None
     eta_minutes: Optional[int] = None
     summary: Optional[str] = None
+    lat: Optional[float] = None   # incident (accident) location
+    lng: Optional[float] = None
 
 
 class HospitalCallResponse(BaseModel):
@@ -160,19 +162,22 @@ class HospitalCallResponse(BaseModel):
     detail: Optional[str] = None
 
 
-def _hospital_fallback(req: HospitalCallRequest) -> dict:
+def _hospital_fallback(req: HospitalCallRequest, location: Optional[str]) -> dict:
     hosp = req.hospital_name or "your hospital"
     eta = f"{req.eta_minutes} minutes" if req.eta_minutes else "shortly"
     eta_hi = f"{req.eta_minutes} minute mein" if req.eta_minutes else "jald hi"
     sev = req.severity or "unknown"
+    loc = location or "a nearby location"
+    loc_hi = f" Durghatna {loc} par hui hai." if location else ""
+    loc_en = f" The accident occurred at {loc}." if location else ""
     return {
         "hi": (
-            f"Namaste, yah CrashGuard se ek pre-alert hai. Ek durghatna hui hai. "
+            f"Namaste, yah CrashGuard se ek pre-alert hai. Ek durghatna hui hai.{loc_hi} "
             f"{req.victims} ghayal mareez {hosp} laye ja rahe hain aur {eta_hi} pahunchenge. "
             f"Sthiti {sev} hai. Kripya apni emergency team taiyar rakhein."
         ),
         "en": (
-            f"Hello, this is a pre-alert from CrashGuard. There has been an accident. "
+            f"Hello, this is a pre-alert from CrashGuard. There has been an accident.{loc_en} "
             f"{req.victims} injured patient(s) are being brought to {hosp}, arriving in {eta}. "
             f"Condition is {sev}. Please have your emergency team ready."
         ),
@@ -182,15 +187,18 @@ def _hospital_fallback(req: HospitalCallRequest) -> dict:
 HOSPITAL_SYSTEM_PROMPT = (
     "You compose a short spoken pre-alert an AUTOMATED system reads to a hospital so they prepare for "
     "inbound accident patients. Two versions: Hindi and English. Introduce it as a pre-alert from "
-    "CrashGuard; state the number of injured, the ETA if given, and severity if given; end by asking them "
-    "to keep the emergency team ready. No placeholders. 2-3 sentences each. "
-    'Return ONLY valid JSON: {"hi":"<hindi>","en":"<english>"}'
+    "CrashGuard; clearly state WHERE the accident occurred (the incident location provided), the number "
+    "of injured, the estimated arrival time (ETA) if given, and severity if given, so the hospital knows "
+    "how far away the patients are; end by asking them to keep the emergency team ready. No placeholders. "
+    '2-4 sentences each. Return ONLY valid JSON: {"hi":"<hindi>","en":"<english>"}'
 )
 
 
 def _compose_hospital(req: HospitalCallRequest) -> tuple[dict, str]:
+    location = _resolve_location(req.lat, req.lng)  # reverse-geocode the incident spot
     facts = {
         "hospital_name": req.hospital_name,
+        "incident_location": location,
         "injured_count": req.victims,
         "eta_minutes": req.eta_minutes,
         "severity": req.severity,
@@ -199,7 +207,7 @@ def _compose_hospital(req: HospitalCallRequest) -> tuple[dict, str]:
     data = converse_json(HOSPITAL_SYSTEM_PROMPT, f"Facts: {facts}")
     if data and data.get("hi") and data.get("en"):
         return {"hi": str(data["hi"]), "en": str(data["en"])}, "bedrock"
-    return _hospital_fallback(req), "fallback"
+    return _hospital_fallback(req, location), "fallback"
 
 
 @router.post("/hospital", response_model=HospitalCallResponse)

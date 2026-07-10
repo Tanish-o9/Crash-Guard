@@ -8,7 +8,7 @@ import {
   Linking,
   ScrollView,
 } from 'react-native';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -43,10 +43,13 @@ export default function SamaritanScreen() {
 
   // Small UI note shown after a hospital pre-alert (real vs demo number).
   const [dispatchInfo, setDispatchInfo] = useState<string | null>(null);
+  // Guards the auto-dispatch so the nearest hospital is only dispatched once.
+  const hasDispatched = useRef(false);
 
   // Reset store on mount
   useEffect(() => {
     reset();
+    hasDispatched.current = false;
   }, []);
 
   // ─── Step Handlers ─────────────────────────────────────────────────────────
@@ -103,20 +106,6 @@ export default function SamaritanScreen() {
     }
   }, [step]);
 
-  // Hospital fetch effect
-  useEffect(() => {
-    if (step === 'hospital' && canTransport && lat && lng) {
-      (async () => {
-        setLoading(true);
-        const fetched =
-          (await agentService.getNearbyHospitals(lat, lng)) ??
-          (await emergencyService.getNearbyHospitals(lat, lng));
-        setHospitals(fetched.slice(0, 3)); // show top 3
-        setLoading(false);
-      })();
-    }
-  }, [step]);
-
   const handleDone = () => {
     Speech.stop();
     router.back();
@@ -165,12 +154,34 @@ export default function SamaritanScreen() {
         severity: nlpResult?.severity ?? null,
         etaMinutes,
         summary: nlpResult?.summary ?? undefined,
+        lat, // incident location — spoken to the hospital so they know where it happened
+        lng,
       });
       console.log(`[Hospital pre-alert] ${h.name} → ${dialTo}: ${r?.status ?? 'unreachable'}${r?.error ? ' — ' + r.error : ''}`);
     } else {
       console.log(`[Hospital pre-alert] no number to dial for ${h.name}`);
     }
   };
+
+  // Hospital fetch + AUTO-dispatch: on reaching the hospital step, fetch the nearest
+  // hospitals and immediately route to + pre-alert the closest one. No manual list
+  // selection — in an emergency the samaritan has no time to choose.
+  useEffect(() => {
+    if (step === 'hospital' && canTransport && lat && lng && !hasDispatched.current) {
+      hasDispatched.current = true;
+      (async () => {
+        setLoading(true);
+        const fetched =
+          (await agentService.getNearbyHospitals(lat, lng)) ??
+          (await emergencyService.getNearbyHospitals(lat, lng));
+        setHospitals(fetched);
+        setLoading(false);
+        if (fetched.length > 0) {
+          void dispatchHospital(fetched[0]); // nearest (backend sorts by distance)
+        }
+      })();
+    }
+  }, [step]);
 
   // ─── Renderers ──────────────────────────────────────────────────────────────
 
@@ -233,48 +244,61 @@ export default function SamaritanScreen() {
     </View>
   );
 
-  const renderHospital = () => (
-    <View style={styles.content}>
-      <Text style={styles.title}>Nearby Hospitals</Text>
-      <Text style={styles.subtitle}>You indicated you can transport. (Powered by Amazon Location)</Text>
+  const renderHospital = () => {
+    const nearest = hospitals[0];
+    return (
+      <View style={styles.content}>
+        <Text style={styles.title}>Nearest Hospital</Text>
+        <Text style={styles.subtitle}>
+          Routing you to the nearest hospital and pre-alerting them automatically.
+        </Text>
 
-      {dispatchInfo && (
-        <View style={styles.dispatchNote}>
-          <Text style={styles.dispatchNoteText}>{dispatchInfo}</Text>
-        </View>
-      )}
-
-      {isLoading ? (
-        <View style={{ padding: 40, alignItems: 'center' }}>
-          <ActivityIndicator size="small" color="#FF3B3B" />
-        </View>
-      ) : hospitals.length === 0 ? (
-        <Text style={{ color: '#666680', textAlign: 'center', marginTop: 20 }}>No hospitals found nearby.</Text>
-      ) : (
-        hospitals.map((h) => (
-          <View key={h.placeId} style={styles.hospitalCard}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.hospitalName} numberOfLines={1}>{h.name}</Text>
-              <Text style={styles.hospitalDist}>
-                {h.distanceKm.toFixed(1)} km away{h.phoneNumber ? ` • ${h.phoneNumber}` : ' • no number listed'}
-              </Text>
-              <Text style={{ fontSize: 11, color: '#555566', marginTop: 4 }} numberOfLines={1}>{h.address}</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.navBtn}
-              onPress={() => void dispatchHospital(h)}
-            >
-              <Text style={styles.navBtnText}>Navigate & Alert</Text>
-            </TouchableOpacity>
+        {isLoading ? (
+          <View style={{ padding: 40, alignItems: 'center' }}>
+            <ActivityIndicator size="small" color="#FF3B3B" />
+            <Text style={styles.loadingText}>Finding the nearest hospital…</Text>
           </View>
-        ))
-      )}
+        ) : !nearest ? (
+          <Text style={{ color: '#666680', textAlign: 'center', marginTop: 20 }}>
+            No hospitals found nearby.
+          </Text>
+        ) : (
+          <>
+            <View style={styles.hospitalCard}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.hospitalName} numberOfLines={1}>{nearest.name}</Text>
+                <Text style={styles.hospitalDist}>
+                  {nearest.distanceKm.toFixed(1)} km away{nearest.phoneNumber ? ` • ${nearest.phoneNumber}` : ' • no number listed'}
+                </Text>
+                <Text style={{ fontSize: 11, color: '#555566', marginTop: 4 }} numberOfLines={2}>{nearest.address}</Text>
+              </View>
+            </View>
 
-      <TouchableOpacity style={[styles.secondaryBtn, { marginTop: 12 }]} onPress={() => next()}>
-        <Text style={styles.secondaryBtnText}>Skip / Finish</Text>
-      </TouchableOpacity>
-    </View>
-  );
+            {dispatchInfo && (
+              <View style={styles.dispatchNote}>
+                <Text style={styles.dispatchNoteText}>{dispatchInfo}</Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[styles.secondaryBtn, { marginTop: 4 }]}
+              onPress={() =>
+                Linking.openURL(
+                  `https://www.google.com/maps/dir/?api=1&destination=${nearest.lat},${nearest.lng}`,
+                ).catch(() => {})
+              }
+            >
+              <Text style={styles.secondaryBtnText}>Reopen directions</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        <TouchableOpacity style={[styles.primaryBtn, { marginTop: 16 }]} onPress={handleDone}>
+          <Text style={styles.primaryBtnText}>Done</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   const renderDone = () => (
     <View style={styles.contentCentered}>
