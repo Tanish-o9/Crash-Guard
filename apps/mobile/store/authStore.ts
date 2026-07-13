@@ -11,7 +11,7 @@ interface AuthState {
 
   // Actions
   initialize: () => Promise<void>;
-  setSession: (session: Session | null) => void;
+  setSession: (session: Session | null) => Promise<void>;
   setOnboarded: (value: boolean) => void;
   signOut: () => Promise<void>;
 }
@@ -59,8 +59,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  setSession: (session) =>
-    set({ session, user: session?.user ?? null }),
+  setSession: async (session) => {
+    set({ session, user: session?.user ?? null });
+    if (session?.user?.id) {
+      const { data: userProfile } = await supabase
+        .from('users')
+        .select('id, name')
+        .eq('id', session.user.id)
+        .single();
+      set({ isOnboarded: !!userProfile?.name });
+    }
+  },
 
   setOnboarded: (value) => set({ isOnboarded: value }),
 

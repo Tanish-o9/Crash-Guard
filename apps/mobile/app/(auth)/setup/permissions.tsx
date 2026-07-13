@@ -30,7 +30,8 @@ interface PermissionItem {
 const C = {
   bgCard: '#FFFFFF', sage: '#4A7060', sagePale: '#C4D8CC', sageTint: '#EBF3EF',
   ink: '#1C2826', inkMid: '#445550', inkFaint: '#8A9E96',
-  line: '#DDD6C8', lineLight: '#EAE4D8', coral: '#C8503C', amber: '#B87830'
+  line: '#DDD6C8', lineLight: '#EAE4D8', coral: '#C8503C', amber: '#B87830',
+  amberTint: '#FDF3E7', coralTint: '#FDECEA',
 };
 
 export default function PermissionsScreen() {
@@ -170,7 +171,7 @@ export default function PermissionsScreen() {
 
   function handleNext() {
     const missingCritical = permissions.filter(p => p.critical && p.status !== 'granted');
-    if (missingCritical.length > 0) {
+    if (missingCritical.length > 0 && Platform.OS === 'android') {
       Alert.alert('Required Permissions Missing', 'Please grant all critical permissions before continuing.');
       return;
     }

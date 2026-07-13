@@ -41,7 +41,7 @@ export function useCrashDetection() {
 
   const { latestFeatures, status: rideStatus } = useSensorStore();
   const calibrationState = useCalibrationStore();
-  const baselineValid = calibrationState.userBaseline?.isValid ?? false;
+  const baselineValid = __DEV__ ? true : (calibrationState.userBaseline?.isValid ?? false);
   const { phase, processWindow, reportStillnessCheck, resetToNormal, addLogEntry } = useDetectionStore();
   const { startAlarm } = useAlarmStore();
   const { session } = useAuthStore();

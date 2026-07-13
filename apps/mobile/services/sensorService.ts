@@ -177,9 +177,27 @@ class SensorService {
     store.setLatestFeatures(window.features);
     store.addWindow(window);
 
-    // ── Anomaly detection hook (called in Part 5) ─────────────────────────
-    // anomalyDetector.check(window.features) — will be wired up in Part 5
-    // For now, we just log the window
+    // ── Anomaly detection ─────────────────────────────────────────────────
+    const { status: rideStatus } = useSensorStore.getState();
+    if (rideStatus === 'riding') {
+      const { runStage1 } = require('@/services/crashDetector');
+      const { useDetectionStore } = require('@/store/detectionStore');
+      const { useAlarmStore } = require('@/store/alarmStore');
+      const { runStage2StillnessCheck } = require('@/services/crashDetector');
+
+      const result = runStage1(window.features);
+      const detStore = useDetectionStore.getState();
+      const newPhase = detStore.processWindow(window.features, result);
+
+      const isInStage2 = newPhase === 'STAGE2_CLASSIFYING' || detStore.phase === 'STAGE2_CLASSIFYING';
+      if (isInStage2) {
+        const isStill = runStage2StillnessCheck(window.features);
+        const finalPhase = detStore.reportStillnessCheck(isStill);
+        if (finalPhase === 'CRASH_CONFIRMED') {
+          useAlarmStore.getState().startAlarm('auto_sensor');
+        }
+      }
+    }
   }
 }
 

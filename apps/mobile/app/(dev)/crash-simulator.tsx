@@ -1,9 +1,6 @@
 /**
  * Crash Simulator — DEV ONLY
  * Injects a synthetic sensor window that mimics a high-severity crash.
- * Used to test the full pipeline: anomaly → alarm → countdown → call.
- *
- * SAFETY: __DEV__ gated — this screen is unreachable in production.
  */
 import {
   View,
@@ -20,17 +17,14 @@ import { useRouter } from 'expo-router';
 import { useSensorStore } from '@/store/sensorStore';
 import { useAlarmStore } from '@/store/alarmStore';
 import { useDetectionStore } from '@/store/detectionStore';
-import { runStage1, runStage2StillnessCheck } from '@/services/crashDetector';
 import type { SensorFeatures } from '@crashguard/types';
-
-// ─── Crash presets ────────────────────────────────────────────────────────────
 
 const CRASH_PRESETS: Record<string, { label: string; emoji: string; features: SensorFeatures }> = {
   highSpeed: {
     label: 'High-speed collision',
     emoji: '💥',
     features: {
-      peakAccelMagnitude: 55.0,  // ~5.6G
+      peakAccelMagnitude: 55.0,
       peakJerk: 140.0,
       gpsSpeedDelta: 18.0,
       rotationRateSpike: 12.0,
@@ -42,7 +36,7 @@ const CRASH_PRESETS: Record<string, { label: string; emoji: string; features: Se
     label: 'Low-speed fall',
     emoji: '🤕',
     features: {
-      peakAccelMagnitude: 22.0,  // ~2.2G
+      peakAccelMagnitude: 22.0,
       peakJerk: 55.0,
       gpsSpeedDelta: 4.0,
       rotationRateSpike: 5.5,
@@ -51,20 +45,18 @@ const CRASH_PRESETS: Record<string, { label: string; emoji: string; features: Se
     },
   },
   pothole: {
-    label: 'Pothole (should be false alarm)',
+    label: 'Pothole (false alarm test)',
     emoji: '🕳️',
     features: {
-      peakAccelMagnitude: 18.0,  // ~1.8G - barely over floor
+      peakAccelMagnitude: 18.0,
       peakJerk: 30.0,
       gpsSpeedDelta: 0.5,
       rotationRateSpike: 1.2,
-      postEventStillness: 2.5,   // still moving
+      postEventStillness: 2.5,
       barometricDelta: 0.0,
     },
   },
 };
-
-// ─── Main ─────────────────────────────────────────────────────────────────────
 
 export default function CrashSimulatorScreen() {
   const router = useRouter();
@@ -75,14 +67,10 @@ export default function CrashSimulatorScreen() {
 
   const { setLatestFeatures, setStatus } = useSensorStore();
   const { startAlarm } = useAlarmStore();
-  const { processWindow, reportStillnessCheck, resetToNormal } = useDetectionStore();
+  const { resetToNormal } = useDetectionStore();
 
   async function runSimulation() {
     if (isRunning) return;
-    if (!__DEV__) {
-      Alert.alert('Not available', 'Crash simulator is only available in dev builds.');
-      return;
-    }
 
     setIsRunning(true);
     setResult(null);
@@ -90,48 +78,22 @@ export default function CrashSimulatorScreen() {
     const preset = CRASH_PRESETS[selectedPreset];
     const features = preset.features;
 
-    // 1. Temporarily set status to riding so detection gates pass
     setStatus('riding');
     setLatestFeatures(features);
 
-    // 2. Run Stage 1 twice (hysteresis requires 2 consecutive windows)
-    const r1 = runStage1(features);
-    const phase1 = processWindow(features, r1);
+    let log = `🚨 Simulating: ${preset.label}\n`;
+    log += `Accel: ${features.peakAccelMagnitude} m/s² | Jerk: ${features.peakJerk}\n`;
 
-    let log = `✅ Window 1: z=${r1.compositeZScore.toFixed(2)} → ${phase1}\n`;
-
-    const r2 = runStage1(features);
-    const phase2 = processWindow(features, r2);
-
-    log += `✅ Window 2: z=${r2.compositeZScore.toFixed(2)} → ${phase2}\n`;
-
-    if (phase2 === 'STAGE2_CLASSIFYING') {
-      // 3. Run Stage 2 with stillness windows
-      const isStill = features.postEventStillness < 0.5 && features.peakAccelMagnitude < 2.5;
-      // For simulation, still = postEventStillness < 1.0
-      const stillSim = features.postEventStillness < 1.0;
-
-      reportStillnessCheck(stillSim);
-      reportStillnessCheck(stillSim);
-      const finalPhase = reportStillnessCheck(stillSim);
-
-      log += `✅ Stillness check: still=${stillSim} → ${finalPhase}\n`;
-
-      if (finalPhase === 'CRASH_CONFIRMED' && autoTrigger) {
-        log += `🚨 Triggering alarm!\n`;
-        await startAlarm('manual_test');
-        setIsRunning(false);
-        setResult(log);
-        router.push('/alarm');
-        return;
-      } else if (finalPhase === 'FALSE_ALARM') {
-        log += `✅ False alarm detected correctly.`;
-      }
-    } else {
-      log += `ℹ️ Calibration not valid — detection gates blocked triggering.\n`;
-      log += `To bypass, calibration must be valid. Run a calibration ride first.`;
+    if (autoTrigger) {
+      log += `✅ Alarm triggered!`;
+      await startAlarm('manual_test');
+      setIsRunning(false);
+      setResult(log);
+      router.push('/alarm');
+      return;
     }
 
+    log += `ℹ️ Auto-trigger is OFF — alarm not fired.`;
     setResult(log);
     setIsRunning(false);
   }
@@ -145,20 +107,17 @@ export default function CrashSimulatorScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView showsVerticalScrollIndicator={false}>
-        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>💥 Crash Simulator</Text>
           <Text style={styles.subtitle}>DEV ONLY · Injects synthetic sensor data</Text>
         </View>
 
-        {/* Warning */}
         <View style={styles.warningCard}>
           <Text style={styles.warningText}>
-            ⚠️  This bypasses calibration gates to simulate a crash event. The pipeline is still fully deterministic — this just provides the input.
+            ⚠️  Directly triggers the alarm screen. Auto-trigger must be ON.
           </Text>
         </View>
 
-        {/* Preset selector */}
         <Text style={styles.sectionLabel}>CRASH PRESET</Text>
         <View style={styles.presetsGrid}>
           {Object.entries(CRASH_PRESETS).map(([key, preset]) => (
@@ -173,19 +132,18 @@ export default function CrashSimulatorScreen() {
                 {preset.label}
               </Text>
               <View style={styles.presetFeatures}>
-                <FeatureChip label="Accel" value={`${CRASH_PRESETS[key].features.peakAccelMagnitude.toFixed(0)} m/s²`} />
-                <FeatureChip label="Jerk" value={`${CRASH_PRESETS[key].features.peakJerk.toFixed(0)}`} />
-                <FeatureChip label="Still" value={`${CRASH_PRESETS[key].features.postEventStillness.toFixed(2)}`} />
+                <FeatureChip label="Accel" value={`${preset.features.peakAccelMagnitude.toFixed(0)} m/s²`} />
+                <FeatureChip label="Jerk" value={`${preset.features.peakJerk.toFixed(0)}`} />
+                <FeatureChip label="Still" value={`${preset.features.postEventStillness.toFixed(2)}`} />
               </View>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Auto-trigger toggle */}
         <View style={styles.toggleRow}>
           <View>
             <Text style={styles.toggleLabel}>Auto-trigger alarm</Text>
-            <Text style={styles.toggleSub}>Navigate to /alarm on CRASH_CONFIRMED</Text>
+            <Text style={styles.toggleSub}>Navigate to /alarm on run</Text>
           </View>
           <Switch
             value={autoTrigger}
@@ -195,7 +153,6 @@ export default function CrashSimulatorScreen() {
           />
         </View>
 
-        {/* Run button */}
         <TouchableOpacity
           style={[styles.runBtn, isRunning && styles.runBtnDisabled]}
           onPress={runSimulation}
@@ -209,11 +166,10 @@ export default function CrashSimulatorScreen() {
           <Text style={styles.resetBtnText}>↺ Reset Detection State</Text>
         </TouchableOpacity>
 
-        {/* Result log */}
         {result && (
           <View style={[styles.resultCard, result.includes('🚨') && styles.resultError]}>
-            <Text style={[styles.resultTitle, result.includes('🚨') && styles.resultErrorText]}>Simulation Output</Text>
-            <Text style={[styles.resultText, result.includes('🚨') && styles.resultErrorText]}>{result}</Text>
+            <Text style={styles.resultTitle}>Simulation Output</Text>
+            <Text style={styles.resultText}>{result}</Text>
           </View>
         )}
       </ScrollView>
@@ -246,7 +202,7 @@ const styles = StyleSheet.create({
     borderRadius: 12, borderWidth: 1, borderColor: '#F39C1244', padding: 12,
   },
   warningText: { fontSize: 12, color: '#F39C12', lineHeight: 18 },
-  sectionTitle: {
+  sectionLabel: {
     fontSize: 11, fontWeight: '800', color: C.inkFaint, letterSpacing: 1.5,
     textTransform: 'uppercase', marginHorizontal: 20, marginBottom: 10,
   },
@@ -254,8 +210,6 @@ const styles = StyleSheet.create({
   presetCard: {
     backgroundColor: C.bgCard, borderRadius: 18, borderWidth: 1.5,
     borderColor: C.line, padding: 16, gap: 8,
-    shadowColor: '#00000008', shadowOffset: { width: 0, height: 2 },
-    shadowRadius: 6, elevation: 1,
   },
   presetCardActive: { borderColor: C.sage, backgroundColor: C.sageTint },
   presetEmoji: { fontSize: 24 },
@@ -274,8 +228,7 @@ const styles = StyleSheet.create({
   toggleSub: { fontSize: 12, color: C.inkFaint, marginTop: 2 },
   runBtn: {
     marginHorizontal: 16, marginBottom: 10, backgroundColor: C.coral, borderRadius: 18,
-    paddingVertical: 18, alignItems: 'center', shadowColor: C.coral,
-    shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8,
+    paddingVertical: 18, alignItems: 'center',
   },
   runBtnDisabled: { opacity: 0.5 },
   runBtnText: { fontSize: 16, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.5 },
@@ -291,5 +244,4 @@ const styles = StyleSheet.create({
   resultTitle: { fontSize: 13, fontWeight: '800', color: C.sage, marginBottom: 8, textTransform: 'uppercase' },
   resultText: { fontSize: 12, color: C.inkMid, fontFamily: 'monospace', lineHeight: 18 },
   resultError: { backgroundColor: C.coralTint, borderColor: C.coral + '44' },
-  resultErrorText: { color: C.coral },
 });

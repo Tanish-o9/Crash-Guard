@@ -44,8 +44,8 @@ const ML_SERVICE_URL = process.env.EXPO_PUBLIC_ML_SERVICE_URL ?? 'http://localho
 export function runStage1(features: SensorFeatures): DetectionResult {
   const { baseline, userBaseline } = useCalibrationStore.getState();
 
-  // Safety gate: detection disabled without valid baseline
-  if (!userBaseline?.isValid || baseline.sampleCount < 100) {
+  // Safety gate: detection disabled without valid baseline (bypassed in dev)
+  if (!__DEV__ && (!userBaseline?.isValid || baseline.sampleCount < 100)) {
     return {
       isAnomaly: false,
       compositeZScore: 0,
@@ -54,6 +54,15 @@ export function runStage1(features: SensorFeatures): DetectionResult {
       reason: 'Detection disabled — calibration required',
     };
   }
+
+  // In dev mode, use a dummy baseline if none exists
+  const activeBaseline = (__DEV__ && baseline.sampleCount < 100)
+    ? {
+        means: { peakAccelMagnitude: 12, peakJerk: 20, gpsSpeedDelta: 1, rotationRateSpike: 1, postEventStillness: 1, barometricDelta: 0 },
+        variances: { peakAccelMagnitude: 4, peakJerk: 9, gpsSpeedDelta: 0.25, rotationRateSpike: 0.25, postEventStillness: 0.25, barometricDelta: 0.01 },
+        sampleCount: 100,
+      }
+    : baseline;
 
   // Absolute floor check (< 1.5G → cannot be a serious crash impact)
   if (features.peakAccelMagnitude < ANOMALY_ABS_FLOOR_ACCEL_MS2) {
@@ -67,7 +76,7 @@ export function runStage1(features: SensorFeatures): DetectionResult {
   }
 
   // Compute z-scores
-  const { perFeature, composite } = computeZScores(features, baseline);
+  const { perFeature, composite } = computeZScores(features, activeBaseline);
 
   const isAnomaly = composite >= ANOMALY_Z_THRESHOLD;
   const confidence = isAnomaly
